@@ -749,8 +749,9 @@ const AdminPage = () => {
                                 </td>
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-2">
-                                    <Link to={`/product/${product._id}`} target="_blank">
-                                      <button className="text-gs-gray hover:text-blue-500 transition-colors"><FiEye size={14} /></button>
+                                    <Link to={`/product/${product._id}`} target="_blank"
+                                      className="text-gs-gray hover:text-blue-500 transition-colors">
+                                      <FiEye size={14} />
                                     </Link>
                                     <button onClick={() => { setEditProduct(product); setShowProductModal(true); }}
                                       className="text-gs-gray hover:text-gs-gold transition-colors"><FiEdit2 size={14} /></button>

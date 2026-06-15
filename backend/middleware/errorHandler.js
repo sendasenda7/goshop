@@ -1,27 +1,27 @@
+// backend/middleware/errorHandler.js
 const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
 
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    message = 'Ressource introuvable';
-    statusCode = 404;
-  }
-
-  // Mongoose duplicate key
+  // Erreur Mongoose (duplicate key)
   if (err.code === 11000) {
-    message = 'Cette valeur existe déjà';
     statusCode = 400;
+    message = 'Donnée en double détectée';
   }
 
-  // Mongoose validation error
+  // Erreur de validation Mongoose
   if (err.name === 'ValidationError') {
-    message = Object.values(err.errors).map(val => val.message).join(', ');
     statusCode = 400;
+    message = Object.values(err.errors).map(e => e.message).join(', ');
+  }
+
+  // Erreur JWT
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Token invalide';
   }
 
   res.status(statusCode).json({
-    success: false,
     message,
     stack: process.env.NODE_ENV === 'production' ? null : err.stack,
   });

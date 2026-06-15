@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly } = require('../middleware/authMiddleware');
 
 router.get('/', protect, adminOnly, asyncHandler(async (req, res) => {
   const users = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
