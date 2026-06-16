@@ -1,15 +1,12 @@
-// backend/controllers/orderController.js
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 
-// @desc    Créer une commande à partir du panier
+// @desc    Créer une commande
 // @route   POST /api/orders
 // @access  Private
 const createOrder = async (req, res) => {
-  // On ignore req.body.totalPrice, on le calcule nous-mêmes
   try {
-    // 1. Récupérer le panier de l'utilisateur
     const cart = await Cart.findOne({ user: req.user._id }).populate('items.product');
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({ message: 'Votre panier est vide' });
@@ -18,7 +15,6 @@ const createOrder = async (req, res) => {
     let totalPrice = 0;
     const orderItems = [];
 
-    // 2. Vérifier le stock pour chaque produit et calculer le total
     for (const item of cart.items) {
       const product = item.product;
       const quantity = item.quantity;
@@ -35,21 +31,20 @@ const createOrder = async (req, res) => {
         name: product.name,
         price: product.price,
         quantity,
-        image: product.image,
+        image: product.images?.[0] || '',
       });
     }
 
-    // 3. Créer la commande (sans décrémenter le stock immédiatement pour éviter la double vente si erreur)
     const order = new Order({
       user: req.user._id,
       items: orderItems,
       totalPrice,
-      shippingAddress: req.body.shippingAddress, // vient du frontend
+      shippingAddress: req.body.shippingAddress,
       paymentMethod: req.body.paymentMethod,
-      isPaid: false,
+      paymentStatus: 'pending',
+      orderStatus: 'processing',
     });
 
-    // 4. Décrémenter le stock de chaque produit (opération atomique)
     for (const item of cart.items) {
       await Product.findByIdAndUpdate(item.product._id, {
         $inc: { stock: -item.quantity },
@@ -57,8 +52,6 @@ const createOrder = async (req, res) => {
     }
 
     await order.save();
-
-    // 5. Vider le panier après commande réussie
     await Cart.findOneAndDelete({ user: req.user._id });
 
     res.status(201).json(order);
@@ -68,7 +61,7 @@ const createOrder = async (req, res) => {
   }
 };
 
-// @desc    Obtenir toutes les commandes de l'utilisateur
+// @desc    Commandes de l'utilisateur
 // @route   GET /api/orders/myorders
 // @access  Private
 const getMyOrders = async (req, res) => {
@@ -81,7 +74,7 @@ const getMyOrders = async (req, res) => {
   }
 };
 
-// @desc    Obtenir une commande par ID
+// @desc    Commande par ID
 // @route   GET /api/orders/:id
 // @access  Private
 const getOrderById = async (req, res) => {
@@ -90,7 +83,6 @@ const getOrderById = async (req, res) => {
     if (!order) {
       return res.status(404).json({ message: 'Commande non trouvée' });
     }
-    // Vérifier que l'utilisateur est propriétaire ou admin
     if (order.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(401).json({ message: 'Non autorisé' });
     }
@@ -101,9 +93,9 @@ const getOrderById = async (req, res) => {
   }
 };
 
-// @desc    Mettre à jour le statut de paiement (webhook ou route admin)
+// @desc    Marquer comme payé
 // @route   PUT /api/orders/:id/pay
-// @access  Private/Admin
+// @access  Private
 const updateOrderToPaid = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -126,4 +118,37 @@ const updateOrderToPaid = async (req, res) => {
   }
 };
 
-module.exports = { createOrder, getMyOrders, getOrderById, updateOrderToPaid };
+// ⚠️ Pour admin (utilisé par adminRoutes)
+const getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({}).populate('user', 'name email').sort({ createdAt: -1 });
+    res.json({ orders });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { orderStatus } = req.body;
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Commande non trouvée' });
+    order.orderStatus = orderStatus;
+    if (orderStatus === 'delivered') order.deliveredAt = Date.now();
+    const updatedOrder = await order.save();
+    res.json({ order: updatedOrder });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
+module.exports = {
+  createOrder,
+  getMyOrders,
+  getOrderById,
+  updateOrderToPaid,
+  getAllOrders,
+  updateOrderStatus,
+};

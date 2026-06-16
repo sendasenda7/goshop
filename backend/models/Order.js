@@ -1,41 +1,23 @@
+// backend/models/Order.js
 const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  items: [
-    {
-      product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-      name: String,
-      image: String,
-      price: Number,
-      quantity: Number,
-      size: String,
-      color: String,
-    },
-  ],
-  shippingAddress: {
-    fullName: String,
-    street: String,
-    city: String,
-    state: String,
-    zipCode: String,
-    country: String,
-  },
-  paymentMethod: { type: String, default: 'card' },
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'paid', 'failed'],
-    default: 'pending',
-  },
-  orderStatus: {
-    type: String,
-    enum: ['processing', 'shipped', 'delivered', 'cancelled'],
-    default: 'processing',
-  },
-  itemsPrice: { type: Number, required: true },
-  shippingPrice: { type: Number, default: 0 },
+  items: [{
+    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    name: String,
+    price: Number,
+    quantity: Number,
+    image: String
+  }],
   totalPrice: { type: Number, required: true },
+  shippingAddress: { type: Object, required: true },
+  paymentMethod: { type: String, required: true },
+  paymentStatus: { type: String, default: 'pending' }, // pending, paid, failed
+  orderStatus: { type: String, default: 'processing' }, // processing, shipped, delivered, cancelled
+  paidAt: Date,
   deliveredAt: Date,
-}, { timestamps: true });
+  createdAt: { type: Date, default: Date.now }
+});
 
 module.exports = mongoose.model('Order', orderSchema);

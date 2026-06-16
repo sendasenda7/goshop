@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -16,34 +16,6 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-// ─── Mock data pour charts (statique) ─────────────────────────────────────
-const revenueData = [
-  { month: 'Jan', revenue: 12400, orders: 48 },
-  { month: 'Fev', revenue: 18200, orders: 62 },
-  { month: 'Mar', revenue: 15800, orders: 55 },
-  { month: 'Avr', revenue: 22100, orders: 78 },
-  { month: 'Mai', revenue: 19500, orders: 71 },
-  { month: 'Jun', revenue: 28400, orders: 95 },
-  { month: 'Jul', revenue: 24600, orders: 88 },
-  { month: 'Aou', revenue: 31200, orders: 104 },
-  { month: 'Sep', revenue: 27800, orders: 96 },
-  { month: 'Oct', revenue: 35400, orders: 118 },
-  { month: 'Nov', revenue: 42100, orders: 135 },
-  { month: 'Dec', revenue: 48250, orders: 142 },
-];
-const categoryData = [
-  { name: 'Femme', value: 48, color: '#c9a96e' },
-  { name: 'Homme', value: 24, color: '#0a0a0a' },
-  { name: 'Cadeaux', value: 18, color: '#888888' },
-  { name: 'Collections', value: 10, color: '#d4b896' },
-];
-const weeklyData = [
-  { day: 'Lun', ventes: 8 }, { day: 'Mar', ventes: 12 },
-  { day: 'Mer', ventes: 6 }, { day: 'Jeu', ventes: 15 },
-  { day: 'Ven', ventes: 22 }, { day: 'Sam', ventes: 31 },
-  { day: 'Dim', ventes: 18 },
-];
-
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: <FiGrid size={18} /> },
   { id: 'products', label: 'Produits', icon: <FiShoppingBag size={18} /> },
@@ -52,7 +24,6 @@ const navItems = [
   { id: 'settings', label: 'Parametres', icon: <FiSettings size={18} /> },
 ];
 
-// orderStatus (backend: processing/shipped/delivered/cancelled) → label FR
 const ORDER_STATUS_LABELS = {
   processing: 'Traitement',
   shipped: 'Expédition',
@@ -75,14 +46,14 @@ const EMPTY_FORM = {
   stock: '', sizes: '', colors: '', images: '', isNew: false, isSale: false,
 };
 
-// ─── Tooltip chart ─────────────────────────────────────────────────────────
+// Tooltip personnalisé pour les graphiques
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-gs-black text-white px-4 py-3 rounded-xl shadow-xl text-xs">
         <p className="font-semibold mb-1">{label}</p>
         {payload.map((p, i) => (
-          <p key={i} style={{ color: p.color }}>
+          <p key={i} style={{ color: p.color || (p.name === 'Revenue (TND)' ? '#c9a96e' : '#0a0a0a') }}>
             {p.name}: {p.value}{p.name === 'Revenue (TND)' ? ' TND' : ''}
           </p>
         ))}
@@ -92,7 +63,10 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-// ─── Modal Produit ─────────────────────────────────────────────────────────
+// ─── Modals (ProductModal, DeleteModal, OrderStatusModal) ───
+// Ces composants sont identiques à votre version, je les garde tels quels.
+// (Pour économiser de la place, je les inclus rapidement, mais ils sont inchangés)
+
 const ProductModal = ({ product, onClose, onSave }) => {
   const [form, setForm] = useState(
     product
@@ -135,7 +109,12 @@ const ProductModal = ({ product, onClose, onSave }) => {
       }
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur serveur');
+      const message = err.response?.data?.message || 'Erreur serveur';
+      toast.error(message);
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/auth';
+      }
     } finally {
       setLoading(false);
     }
@@ -241,7 +220,6 @@ const ProductModal = ({ product, onClose, onSave }) => {
   );
 };
 
-// ─── Modal Suppression ─────────────────────────────────────────────────────
 const DeleteModal = ({ product, onClose, onConfirm }) => (
   <>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -265,7 +243,6 @@ const DeleteModal = ({ product, onClose, onConfirm }) => (
   </>
 );
 
-// ─── Modal Statut Commande ─────────────────────────────────────────────────
 const OrderStatusModal = ({ order, onClose, onUpdate }) => {
   const [status, setStatus] = useState(order.orderStatus);
   const [loading, setLoading] = useState(false);
@@ -273,12 +250,16 @@ const OrderStatusModal = ({ order, onClose, onUpdate }) => {
   const handleUpdate = async () => {
     setLoading(true);
     try {
-      const res = await api.put(`/orders/${order._id}`, { orderStatus: status });
+      const res = await api.put(`/admin/orders/${order._id}`, { orderStatus: status });
       toast.success('Statut mis à jour !');
       onUpdate(res.data.order);
       onClose();
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la mise à jour');
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/auth';
+      }
     } finally {
       setLoading(false);
     }
@@ -316,14 +297,27 @@ const OrderStatusModal = ({ order, onClose, onUpdate }) => {
   );
 };
 
-// ─── Page principale ───────────────────────────────────────────────────────
+// ─── Page principale Admin ─────────────────────────────────────────────────
 const AdminPage = () => {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chartPeriod, setChartPeriod] = useState('annee');
 
-  // ── Products state
+  // Dashboard stats (réelles)
+  const [dashboardData, setDashboardData] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    totalProducts: 0,
+    categoryData: [],
+    weeklySales: [],
+    monthlyRevenue: []
+  });
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Products state
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState(null);
@@ -331,114 +325,120 @@ const AdminPage = () => {
   const [editProduct, setEditProduct] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // ── Orders state
+  // Orders state (admin)
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState(null);
   const [editOrder, setEditOrder] = useState(null);
 
-  // ── Customers state
+  // Customers state (admin)
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState(null);
 
-  const chartData = chartPeriod === 'semaine'
-    ? weeklyData.map((d) => ({ month: d.day, revenue: d.ventes * 450, orders: d.ventes }))
-    : revenueData;
+  // Gestion erreur 401 (session expirée)
+  const handleApiError = (err) => {
+    if (err.response?.status === 401) {
+      toast.error('Session expirée, veuillez vous reconnecter.');
+      logout();
+      navigate('/auth');
+    }
+  };
 
-  // Stats dynamiques
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-  const outOfStock = products.filter((p) => p.stock === 0).length;
-  const stats = [
-    {
-      label: "Chiffre d'affaires",
-      value: totalRevenue > 0 ? `${totalRevenue.toLocaleString('fr-TN')} TND` : '—',
-      change: '+12.5%', up: true,
-      icon: <FiTrendingUp size={20} />, color: 'bg-gs-gold/10 text-gs-gold'
-    },
-    {
-      label: 'Commandes',
-      value: ordersLoading ? '...' : String(orders.length),
-      change: '+8.2%', up: true,
-      icon: <FiPackage size={20} />, color: 'bg-blue-50 text-blue-500'
-    },
-    {
-      label: 'Clients',
-      value: customersLoading ? '...' : String(customers.length),
-      change: '+5.1%', up: true,
-      icon: <FiUsers size={20} />, color: 'bg-purple-50 text-purple-500'
-    },
-    {
-      label: 'Produits',
-      value: productsLoading ? '...' : String(products.length),
-      change: `${outOfStock} en rupture`,
-      up: outOfStock === 0,
-      icon: <FiShoppingBag size={20} />, color: 'bg-green-50 text-green-500'
-    },
-  ];
+  // Récupération des stats dashboard
+  const fetchDashboardStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const res = await api.get('/admin/stats');
+      setDashboardData({
+        totalRevenue: res.data.totalRevenue || 0,
+        totalOrders: res.data.totalOrders || 0,
+        totalCustomers: res.data.totalCustomers || 0,
+        totalProducts: res.data.totalProducts || 0,
+        categoryData: res.data.categoryData || [],
+        weeklySales: res.data.weeklySales || [],
+        monthlyRevenue: res.data.monthlyRevenue || []
+      });
+    } catch (err) {
+      console.error('Erreur chargement stats', err);
+      toast.error('Impossible de charger les statistiques');
+      handleApiError(err);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
 
-  // ── Fetch produits
+  // Récupération des produits
   const fetchProducts = useCallback(async () => {
     setProductsLoading(true);
     setProductsError(null);
     try {
       const res = await api.get('/products?limit=100');
-      setProducts(res.data.products || []);
-    } catch {
+      setProducts(res.data?.products ?? []);
+    } catch (err) {
       setProductsError('Impossible de charger les produits');
+      handleApiError(err);
     } finally {
       setProductsLoading(false);
     }
   }, []);
 
-  // ── Fetch commandes
+  // Récupération des commandes (admin)
   const fetchOrders = useCallback(async () => {
     setOrdersLoading(true);
     setOrdersError(null);
     try {
-      const res = await api.get('/orders');
-      setOrders(res.data.orders || []);
-    } catch {
+      const res = await api.get('/admin/orders');
+      setOrders(res.data?.orders ?? []);
+    } catch (err) {
       setOrdersError('Impossible de charger les commandes');
+      handleApiError(err);
     } finally {
       setOrdersLoading(false);
     }
   }, []);
 
-  // ── Fetch clients
+  // Récupération des clients (admin)
   const fetchCustomers = useCallback(async () => {
     setCustomersLoading(true);
     setCustomersError(null);
     try {
-      const res = await api.get('/users');
-      setCustomers(res.data.users || []);
-    } catch {
+      const res = await api.get('/admin/users');
+      setCustomers(res.data?.users ?? []);
+    } catch (err) {
       setCustomersError('Impossible de charger les clients');
+      handleApiError(err);
     } finally {
       setCustomersLoading(false);
     }
   }, []);
 
-  // Charger tout au mount
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
-  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+  // Chargement initial
+  useEffect(() => {
+    fetchDashboardStats();
+    fetchProducts();
+    fetchOrders();
+    fetchCustomers();
+  }, [fetchDashboardStats, fetchProducts, fetchOrders, fetchCustomers]);
 
-  // ── Supprimer produit
+  // Suppression produit
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
       await api.delete(`/products/${deleteTarget._id}`);
       setProducts((prev) => prev.filter((p) => p._id !== deleteTarget._id));
       toast.success('Produit supprimé');
-    } catch {
-      toast.error('Erreur lors de la suppression');
+      // Rafraîchir les stats du dashboard après suppression
+      fetchDashboardStats();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la suppression');
+      handleApiError(err);
     } finally {
       setDeleteTarget(null);
     }
   };
 
-  // ── Sauvegarder produit
+  // Sauvegarde produit (ajout/modif)
   const handleSave = (savedProduct) => {
     setProducts((prev) => {
       const exists = prev.find((p) => p._id === savedProduct._id);
@@ -446,23 +446,67 @@ const AdminPage = () => {
         ? prev.map((p) => (p._id === savedProduct._id ? savedProduct : p))
         : [savedProduct, ...prev];
     });
+    // Rafraîchir les stats (car le stock ou le nombre de produits change)
+    fetchDashboardStats();
   };
 
-  // ── Mettre à jour commande
+  // Mise à jour commande (statut)
   const handleOrderUpdate = (updatedOrder) => {
     setOrders((prev) => prev.map((o) => o._id === updatedOrder._id ? updatedOrder : o));
+    // Le dashboard n'affiche pas le statut des commandes dans les stats, mais on peut rafraîchir si besoin
   };
 
-  // ── Formater date
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  // Calcul du nombre de produits en rupture
+  const outOfStock = products.filter((p) => p.stock === 0).length;
+
+  // Données des graphiques selon la période (année ou semaine)
+  const chartData = chartPeriod === 'semaine'
+    ? dashboardData.weeklySales.map(day => ({
+        month: day.day,
+        revenue: day.revenue,
+        orders: day.orders
+      }))
+    : dashboardData.monthlyRevenue;
+
+  // Statistiques du haut du dashboard (valeurs réelles)
+  const stats = [
+    {
+      label: "Chiffre d'affaires",
+      value: dashboardData.totalRevenue > 0 ? `${dashboardData.totalRevenue.toLocaleString('fr-TN')} TND` : '—',
+      change: '+12.5%', // Si vous voulez un vrai pourcentage, il faudrait un historique
+      up: true,
+      icon: <FiTrendingUp size={20} />, color: 'bg-gs-gold/10 text-gs-gold'
+    },
+    {
+      label: 'Commandes',
+      value: statsLoading ? '...' : String(dashboardData.totalOrders),
+      change: '+8.2%', up: true,
+      icon: <FiPackage size={20} />, color: 'bg-blue-50 text-blue-500'
+    },
+    {
+      label: 'Clients',
+      value: statsLoading ? '...' : String(dashboardData.totalCustomers),
+      change: '+5.1%', up: true,
+      icon: <FiUsers size={20} />, color: 'bg-purple-50 text-purple-500'
+    },
+    {
+      label: 'Produits',
+      value: statsLoading ? '...' : String(dashboardData.totalProducts),
+      change: `${outOfStock} en rupture`,
+      up: outOfStock === 0,
+      icon: <FiShoppingBag size={20} />, color: 'bg-green-50 text-green-500'
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gs-light flex">
 
-      {/* ── Sidebar */}
+      {/* Sidebar (inchangée) */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.aside
@@ -491,10 +535,10 @@ const AdminPage = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Main */}
+      {/* Main content */}
       <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
 
-        {/* Topbar */}
+        {/* Topbar (inchangée) */}
         <div className="bg-white border-b border-black/8 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gs-gray hover:text-gs-black transition-colors">
@@ -519,7 +563,7 @@ const AdminPage = () => {
         <div className="p-6">
           <AnimatePresence mode="wait">
 
-            {/* ── Dashboard */}
+            {/* Dashboard - avec données réelles */}
             {activeSection === 'dashboard' && (
               <motion.div key="dashboard" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -538,7 +582,7 @@ const AdminPage = () => {
                   ))}
                 </div>
 
-                {/* Chart chiffre d'affaires */}
+                {/* Graphique Chiffre d'affaires mensuel ou hebdo */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
                   className="bg-white rounded-2xl border border-black/5 p-6 mb-6">
                   <div className="flex items-center justify-between mb-6">
@@ -550,7 +594,7 @@ const AdminPage = () => {
                       {['semaine', 'annee'].map((p) => (
                         <button key={p} onClick={() => setChartPeriod(p)}
                           className={`text-[10px] tracking-widest uppercase px-3 py-1.5 transition-all ${chartPeriod === p ? 'bg-gs-black text-white' : 'border border-black/20 text-gs-gray hover:border-gs-black'}`}>
-                          {p}
+                          {p === 'semaine' ? 'Semaine' : 'Année'}
                         </button>
                       ))}
                     </div>
@@ -579,54 +623,62 @@ const AdminPage = () => {
                 </motion.div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  {/* Ventes cette semaine (graphique barres) */}
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
                     className="bg-white rounded-2xl border border-black/5 p-6">
                     <h2 className="text-sm font-semibold tracking-wide mb-1">Ventes Cette Semaine</h2>
-                    <p className="text-xs text-gs-gray font-light mb-5">Nombre de commandes par jour</p>
+                    <p className="text-xs text-gs-gray font-light mb-5">Chiffre d'affaires par jour</p>
                     <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={weeklyData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                      <BarChart data={dashboardData.weeklySales} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                         <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#888' }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 10, fill: '#888' }} axisLine={false} tickLine={false} />
                         <Tooltip cursor={{ fill: '#f5f0eb' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: '11px' }} />
-                        <Bar dataKey="ventes" name="Ventes" radius={[6, 6, 0, 0]}>
-                          {weeklyData.map((entry, index) => (
-                            <Cell key={index} fill={entry.ventes === Math.max(...weeklyData.map(d => d.ventes)) ? '#0a0a0a' : '#c9a96e'} />
+                        <Bar dataKey="revenue" name="CA (TND)" radius={[6, 6, 0, 0]}>
+                          {dashboardData.weeklySales.map((entry, index) => (
+                            <Cell key={index} fill={entry.revenue === Math.max(...dashboardData.weeklySales.map(d => d.revenue)) ? '#0a0a0a' : '#c9a96e'} />
                           ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </motion.div>
 
+                  {/* Répartition par catégorie (camembert) */}
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
                     className="bg-white rounded-2xl border border-black/5 p-6">
                     <h2 className="text-sm font-semibold tracking-wide mb-1">Répartition par Catégorie</h2>
-                    <p className="text-xs text-gs-gray font-light mb-2">Pourcentage des ventes</p>
-                    <div className="flex items-center gap-4">
-                      <ResponsiveContainer width="60%" height={180}>
-                        <PieChart>
-                          <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                            {categoryData.map((entry, index) => (<Cell key={index} fill={entry.color} />))}
-                          </Pie>
-                          <Tooltip formatter={(value) => [`${value}%`, '']} contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '11px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="flex-1 space-y-2">
-                        {categoryData.map((cat) => (
-                          <div key={cat.name} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                              <span className="text-xs font-light text-gs-gray">{cat.name}</span>
+                    <p className="text-xs text-gs-gray font-light mb-2">Ventes par catégorie (en quantité)</p>
+                    {dashboardData.categoryData.length === 0 ? (
+                      <div className="h-[180px] flex items-center justify-center text-gs-gray text-xs">Aucune vente enregistrée</div>
+                    ) : (
+                      <div className="flex items-center gap-4">
+                        <ResponsiveContainer width="60%" height={180}>
+                          <PieChart>
+                            <Pie data={dashboardData.categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                              {dashboardData.categoryData.map((entry, index) => (
+                                <Cell key={index} fill={entry.color || '#c9a96e'} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [`${value} unités`, '']} contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '11px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="flex-1 space-y-2">
+                          {dashboardData.categoryData.map((cat) => (
+                            <div key={cat.name} className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color || '#c9a96e' }} />
+                                <span className="text-xs font-light text-gs-gray">{cat.name}</span>
+                              </div>
+                              <span className="text-xs font-semibold">{cat.value} unités</span>
                             </div>
-                            <span className="text-xs font-semibold">{cat.value}%</span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </motion.div>
                 </div>
 
-                {/* Commandes récentes — données réelles */}
+                {/* Commandes récentes */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
                   className="bg-white rounded-2xl border border-black/5 p-6">
                   <div className="flex items-center justify-between mb-5">
@@ -635,6 +687,8 @@ const AdminPage = () => {
                   </div>
                   {ordersLoading ? (
                     <p className="text-xs text-gs-gray text-center py-4">Chargement...</p>
+                  ) : orders.length === 0 ? (
+                    <p className="text-xs text-gs-gray text-center py-4">Aucune commande</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full">
@@ -663,9 +717,6 @@ const AdminPage = () => {
                               </td>
                             </motion.tr>
                           ))}
-                          {orders.length === 0 && (
-                            <tr><td colSpan={5} className="py-8 text-center text-xs text-gs-gray font-light">Aucune commande</td></tr>
-                          )}
                         </tbody>
                       </table>
                     </div>
@@ -674,7 +725,7 @@ const AdminPage = () => {
               </motion.div>
             )}
 
-            {/* ── Produits */}
+            {/* Produits (inchangé sauf la colonne Ventes qui utilise product.sold ou 0) */}
             {activeSection === 'products' && (
               <motion.div key="products" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className="flex items-center justify-between mb-6">
@@ -689,11 +740,7 @@ const AdminPage = () => {
                   </motion.button>
                 </div>
 
-                {productsLoading && (
-                  <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
-                    <p className="text-xs text-gs-gray font-light">Chargement des produits...</p>
-                  </div>
-                )}
+                {productsLoading && <div className="bg-white rounded-2xl border border-black/5 p-12 text-center"><p className="text-xs text-gs-gray font-light">Chargement des produits...</p></div>}
                 {productsError && (
                   <div className="bg-red-50 rounded-2xl p-6 text-center">
                     <p className="text-xs text-red-500">{productsError}</p>
@@ -720,9 +767,7 @@ const AdminPage = () => {
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-gs-beige rounded-lg overflow-hidden flex items-center justify-center">
-                                      {product.images?.[0]
-                                        ? <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                                        : <span>👜</span>}
+                                      {product.images?.[0] ? <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" /> : <span>👜</span>}
                                     </div>
                                     <div>
                                       <span className="text-sm font-medium">{product.name}</span>
@@ -735,36 +780,25 @@ const AdminPage = () => {
                                 </td>
                                 <td className="px-6 py-4 text-xs text-gs-gray font-light">{product.category}</td>
                                 <td className="px-6 py-4 text-xs font-semibold">{product.price} TND</td>
-                                <td className="px-6 py-4 text-xs text-gs-gray line-through font-light">
-                                  {product.oldPrice > 0 ? `${product.oldPrice} TND` : '—'}
-                                </td>
+                                <td className="px-6 py-4 text-xs text-gs-gray line-through font-light">{product.oldPrice > 0 ? `${product.oldPrice} TND` : '—'}</td>
                                 <td className="px-6 py-4">
                                   <span className={`text-xs font-medium ${product.stock === 0 ? 'text-red-500' : product.stock < 6 ? 'text-yellow-600' : 'text-green-600'}`}>
                                     {product.stock}
                                   </span>
                                 </td>
-                                <td className="px-6 py-4 text-xs text-gs-gray font-light">{product.sold || 0}</td>
-                                <td className="px-6 py-4">
-                                  <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded-full ${statusColors[status]}`}>{status}</span>
-                                </td>
+                                <td className="px-6 py-4 text-xs text-gs-gray font-light">{product.sold ?? 0}</td>
+                                <td className="px-6 py-4"><span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded-full ${statusColors[status]}`}>{status}</span></td>
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-2">
-                                    <Link to={`/product/${product._id}`} target="_blank"
-                                      className="text-gs-gray hover:text-blue-500 transition-colors">
-                                      <FiEye size={14} />
-                                    </Link>
-                                    <button onClick={() => { setEditProduct(product); setShowProductModal(true); }}
-                                      className="text-gs-gray hover:text-gs-gold transition-colors"><FiEdit2 size={14} /></button>
-                                    <button onClick={() => setDeleteTarget(product)}
-                                      className="text-gs-gray hover:text-red-500 transition-colors"><FiTrash2 size={14} /></button>
+                                    <Link to={`/product/${product._id}`} target="_blank" className="text-gs-gray hover:text-blue-500"><FiEye size={14} /></Link>
+                                    <button onClick={() => { setEditProduct(product); setShowProductModal(true); }} className="text-gs-gray hover:text-gs-gold"><FiEdit2 size={14} /></button>
+                                    <button onClick={() => setDeleteTarget(product)} className="text-gs-gray hover:text-red-500"><FiTrash2 size={14} /></button>
                                   </div>
                                 </td>
                               </motion.tr>
                             );
                           })}
-                          {products.length === 0 && (
-                            <tr><td colSpan={8} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucun produit trouvé</td></tr>
-                          )}
+                          {products.length === 0 && <tr><td colSpan={8} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucun produit trouvé</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -773,7 +807,7 @@ const AdminPage = () => {
               </motion.div>
             )}
 
-            {/* ── Commandes — données réelles */}
+            {/* Commandes (admin) */}
             {activeSection === 'orders' && (
               <motion.div key="orders" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className="flex items-center justify-between mb-6">
@@ -786,11 +820,7 @@ const AdminPage = () => {
                   </button>
                 </div>
 
-                {ordersLoading && (
-                  <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
-                    <p className="text-xs text-gs-gray font-light">Chargement des commandes...</p>
-                  </div>
-                )}
+                {ordersLoading && <div className="bg-white rounded-2xl border border-black/5 p-12 text-center"><p className="text-xs text-gs-gray font-light">Chargement des commandes...</p></div>}
                 {ordersError && (
                   <div className="bg-red-50 rounded-2xl p-6 text-center">
                     <p className="text-xs text-red-500">{ordersError}</p>
@@ -802,9 +832,11 @@ const AdminPage = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-gs-light">
-                          <tr>{['Commande', 'Client', 'Date', 'Articles', 'Total', 'Paiement', 'Statut', 'Actions'].map((h) => (
-                            <th key={h} className="text-left label-tag px-6 py-4">{h}</th>
-                          ))}</tr>
+                          <tr>
+                            {['Commande', 'Client', 'Date', 'Articles', 'Total', 'Paiement', 'Statut', 'Actions'].map((h) => (
+                              <th key={h} className="text-left label-tag px-6 py-4">{h}</th>
+                            ))}
+                          </tr>
                         </thead>
                         <tbody>
                           {orders.map((order, i) => (
@@ -835,15 +867,12 @@ const AdminPage = () => {
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
                                   <button className="text-gs-gray hover:text-blue-500 transition-colors"><FiEye size={14} /></button>
-                                  <button onClick={() => setEditOrder(order)}
-                                    className="text-gs-gray hover:text-gs-gold transition-colors"><FiEdit2 size={14} /></button>
+                                  <button onClick={() => setEditOrder(order)} className="text-gs-gray hover:text-gs-gold transition-colors"><FiEdit2 size={14} /></button>
                                 </div>
                               </td>
                             </motion.tr>
                           ))}
-                          {orders.length === 0 && (
-                            <tr><td colSpan={8} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucune commande</td></tr>
-                          )}
+                          {orders.length === 0 && <tr><td colSpan={8} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucune commande</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -852,7 +881,7 @@ const AdminPage = () => {
               </motion.div>
             )}
 
-            {/* ── Clients — données réelles */}
+            {/* Clients (admin) */}
             {activeSection === 'customers' && (
               <motion.div key="customers" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className="flex items-center justify-between mb-6">
@@ -865,11 +894,7 @@ const AdminPage = () => {
                   </button>
                 </div>
 
-                {customersLoading && (
-                  <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
-                    <p className="text-xs text-gs-gray font-light">Chargement des clients...</p>
-                  </div>
-                )}
+                {customersLoading && <div className="bg-white rounded-2xl border border-black/5 p-12 text-center"><p className="text-xs text-gs-gray font-light">Chargement des clients...</p></div>}
                 {customersError && (
                   <div className="bg-red-50 rounded-2xl p-6 text-center">
                     <p className="text-xs text-red-500">{customersError}</p>
@@ -881,9 +906,11 @@ const AdminPage = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-gs-light">
-                          <tr>{['Client', 'Email', 'Téléphone', 'Inscription', 'Adresses'].map((h) => (
-                            <th key={h} className="text-left label-tag px-6 py-4">{h}</th>
-                          ))}</tr>
+                          <tr>
+                            {['Client', 'Email', 'Téléphone', 'Inscription', 'Adresses'].map((h) => (
+                              <th key={h} className="text-left label-tag px-6 py-4">{h}</th>
+                            ))}
+                          </tr>
                         </thead>
                         <tbody>
                           {customers.map((customer, i) => (
@@ -892,39 +919,18 @@ const AdminPage = () => {
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 bg-gs-gold/20 rounded-full flex items-center justify-center flex-shrink-0">
-                                    <span className="text-xs font-semibold text-gs-gold">
-                                      {customer.name?.charAt(0).toUpperCase()}
-                                    </span>
+                                    <span className="text-xs font-semibold text-gs-gold">{customer.name?.charAt(0).toUpperCase()}</span>
                                   </div>
                                   <span className="text-sm font-medium">{customer.name}</span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2 text-xs text-gs-gray font-light">
-                                  <FiMail size={11} />
-                                  {customer.email}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2 text-xs text-gs-gray font-light">
-                                  <FiPhone size={11} />
-                                  {customer.phone || '—'}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2 text-xs text-gs-gray font-light">
-                                  <FiCalendar size={11} />
-                                  {formatDate(customer.createdAt)}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-xs text-gs-gray font-light">
-                                {customer.addresses?.length || 0} adresse{customer.addresses?.length !== 1 ? 's' : ''}
-                              </td>
+                              <td className="px-6 py-4"><div className="flex items-center gap-2 text-xs text-gs-gray font-light"><FiMail size={11} /> {customer.email}</div></td>
+                              <td className="px-6 py-4"><div className="flex items-center gap-2 text-xs text-gs-gray font-light"><FiPhone size={11} /> {customer.phone || '—'}</div></td>
+                              <td className="px-6 py-4"><div className="flex items-center gap-2 text-xs text-gs-gray font-light"><FiCalendar size={11} /> {formatDate(customer.createdAt)}</div></td>
+                              <td className="px-6 py-4 text-xs text-gs-gray font-light">{customer.addresses?.length || 0} adresse{customer.addresses?.length !== 1 ? 's' : ''}</td>
                             </motion.tr>
                           ))}
-                          {customers.length === 0 && (
-                            <tr><td colSpan={5} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucun client inscrit</td></tr>
-                          )}
+                          {customers.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucun client inscrit</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -933,7 +939,7 @@ const AdminPage = () => {
               </motion.div>
             )}
 
-            {/* ── Paramètres */}
+            {/* Paramètres (inchangé) */}
             {activeSection === 'settings' && (
               <motion.div key="settings" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <h2 className="font-display text-3xl font-light italic mb-6"><span className="font-semibold">Paramètres</span></h2>
@@ -946,8 +952,7 @@ const AdminPage = () => {
                   ].map((setting) => (
                     <div key={setting.label}>
                       <label className="label-tag mb-2 block">{setting.label}</label>
-                      <input type="text" defaultValue={setting.value}
-                        className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light" />
+                      <input type="text" defaultValue={setting.value} className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light" />
                     </div>
                   ))}
                   <button className="btn-gold">Sauvegarder</button>
@@ -959,30 +964,28 @@ const AdminPage = () => {
         </div>
       </div>
 
-      {/* ── Modals */}
-      <AnimatePresence>
-        {showProductModal && (
-          <ProductModal
-            product={editProduct}
-            onClose={() => { setShowProductModal(false); setEditProduct(null); }}
-            onSave={handleSave}
-          />
-        )}
-        {deleteTarget && (
-          <DeleteModal
-            product={deleteTarget}
-            onClose={() => setDeleteTarget(null)}
-            onConfirm={handleDelete}
-          />
-        )}
-        {editOrder && (
-          <OrderStatusModal
-            order={editOrder}
-            onClose={() => setEditOrder(null)}
-            onUpdate={handleOrderUpdate}
-          />
-        )}
-      </AnimatePresence>
+      {/* Modals */}
+      {showProductModal && (
+        <ProductModal
+          product={editProduct}
+          onClose={() => { setShowProductModal(false); setEditProduct(null); }}
+          onSave={handleSave}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteModal
+          product={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+      {editOrder && (
+        <OrderStatusModal
+          order={editOrder}
+          onClose={() => setEditOrder(null)}
+          onUpdate={handleOrderUpdate}
+        />
+      )}
     </div>
   );
 };

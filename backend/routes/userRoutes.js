@@ -1,17 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const asyncHandler = require('express-async-handler');
-const User = require('../models/User');
-const { protect, adminOnly } = require('../middleware/authMiddleware');
+const {
+  getUserProfile,
+  updateUserProfile,
+  getUserOrders,
+  addToWishlist,
+  removeFromWishlist,
+  getWishlist
+} = require('../controllers/userController');
+const { protect } = require('../middleware/authMiddleware');
 
-router.get('/', protect, adminOnly, asyncHandler(async (req, res) => {
-  const users = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
-  res.json({ success: true, users });
-}));
+// Toutes les routes utilisateur nécessitent une authentification
+router.use(protect);
 
-router.get('/stats', protect, adminOnly, asyncHandler(async (req, res) => {
-  const totalUsers = await User.countDocuments({ role: 'user' });
-  res.json({ success: true, totalUsers });
-}));
+router.get('/profile', getUserProfile);
+router.put('/profile', updateUserProfile);
+router.get('/orders', getUserOrders);
+router.get('/wishlist', getWishlist);
+router.post('/wishlist', addToWishlist);
+router.delete('/wishlist/:productId', removeFromWishlist);
 
 module.exports = router;
