@@ -59,7 +59,7 @@ const Footer = () => {
           <ul className="space-y-3">
             {services.map((item) => (
               <li key={item}>
-                <Link to="/account" className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
+                <Link to="/profile" className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
                   {item}
                 </Link>
               </li>
@@ -76,7 +76,7 @@ const Footer = () => {
           <ul className="space-y-3">
             {infos.map((item) => (
               <li key={item}>
-                <Link to="/info" className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
+                <Link to="/" className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
                   {item}
                 </Link>
               </li>

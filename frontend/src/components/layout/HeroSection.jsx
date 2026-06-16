@@ -87,7 +87,7 @@ const HeroSection = () => {
                 <FiArrowRight size={14} strokeWidth={1.5} />
               </motion.button>
             </Link>
-            <Link to="/collections">
+            <Link to="/shop">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
