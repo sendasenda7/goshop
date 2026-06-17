@@ -2,7 +2,7 @@ const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 
 const addToCart = async (req, res) => {
-  const { productId, quantity } = req.body;
+  const { productId, quantity, size, color } = req.body;
 
   try {
     const product = await Product.findById(productId);
@@ -12,17 +12,20 @@ const addToCart = async (req, res) => {
     let cart = await Cart.findOne({ user: req.user._id });
     if (!cart) cart = new Cart({ user: req.user._id, items: [] });
 
-    const itemIndex = cart.items.findIndex(item => item.product.toString() === productId);
+    const itemIndex = cart.items.findIndex(
+      item => item.product.toString() === productId && item.size === size && item.color === color
+    );
     if (itemIndex > -1) {
       const newQuantity = cart.items[itemIndex].quantity + quantity;
       if (product.stock < newQuantity) return res.status(400).json({ message: 'Stock insuffisant' });
       cart.items[itemIndex].quantity = newQuantity;
     } else {
-      cart.items.push({ product: productId, quantity });
+      cart.items.push({ product: productId, quantity, size, color });
     }
 
     await cart.save();
-    res.status(200).json(cart);
+    await cart.populate('items.product');
+    res.status(200).json({ success: true, cart });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -31,8 +34,8 @@ const addToCart = async (req, res) => {
 
 const getCart = async (req, res) => {
   try {
-    const cart = await Cart.findOne({ user: req.user._id }).populate('items.product', 'name price image stock');
-    res.json(cart || { items: [] });
+    const cart = await Cart.findOne({ user: req.user._id }).populate('items.product', 'name price image images stock');
+    res.json({ success: true, cart: cart || { items: [] } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -61,7 +64,8 @@ const updateCartItem = async (req, res) => {
     }
 
     await cart.save();
-    res.json(cart);
+    await cart.populate('items.product');
+    res.json({ success: true, cart });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -74,7 +78,8 @@ const removeFromCart = async (req, res) => {
     if (!cart) return res.status(404).json({ message: 'Panier introuvable' });
     cart.items = cart.items.filter(item => item._id.toString() !== req.params.itemId);
     await cart.save();
-    res.json(cart);
+    await cart.populate('items.product');
+    res.json({ success: true, cart });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -84,7 +89,7 @@ const removeFromCart = async (req, res) => {
 const clearCart = async (req, res) => {
   try {
     await Cart.findOneAndDelete({ user: req.user._id });
-    res.json({ message: 'Panier vidé' });
+    res.json({ success: true, message: 'Panier vidé' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });

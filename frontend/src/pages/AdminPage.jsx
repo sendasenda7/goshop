@@ -123,12 +123,13 @@ const ProductModal = ({ product, onClose, onSave }) => {
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose} className="fixed inset-0 bg-black/50 z-50" />
+        onClick={onClose} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" >
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9 }}
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl p-8 z-50 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg bg-white rounded-2xl p-8 z-50 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm tracking-widest uppercase font-semibold">
@@ -216,6 +217,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
           </div>
         </form>
       </motion.div>
+      </motion.div>
     </>
   );
 };
@@ -223,22 +225,24 @@ const ProductModal = ({ product, onClose, onSave }) => {
 const DeleteModal = ({ product, onClose, onConfirm }) => (
   <>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose} className="fixed inset-0 bg-black/50 z-50" />
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-2xl p-8 z-50 text-center"
-    >
-      <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-        <FiAlertCircle size={22} className="text-red-500" />
-      </div>
-      <h3 className="text-sm font-semibold tracking-wide mb-2">Supprimer le produit ?</h3>
-      <p className="text-xs text-gs-gray font-light mb-6">"{product.name}" sera définitivement supprimé.</p>
-      <div className="flex gap-3">
-        <button onClick={onClose} className="flex-1 btn-outline-black">Annuler</button>
-        <button onClick={onConfirm} className="flex-1 bg-red-500 text-white text-xs tracking-widest uppercase py-3 hover:bg-red-600 transition-colors">
-          Supprimer
-        </button>
-      </div>
+      onClick={onClose} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm bg-white rounded-2xl p-8 z-50 text-center"
+      >
+        <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+          <FiAlertCircle size={22} className="text-red-500" />
+        </div>
+        <h3 className="text-sm font-semibold tracking-wide mb-2">Supprimer le produit ?</h3>
+        <p className="text-xs text-gs-gray font-light mb-6">"{product.name}" sera définitivement supprimé.</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 btn-outline-black">Annuler</button>
+          <button onClick={onConfirm} className="flex-1 bg-red-500 text-white text-xs tracking-widest uppercase py-3 hover:bg-red-600 transition-colors">
+            Supprimer
+          </button>
+        </div>
+      </motion.div>
     </motion.div>
   </>
 );
@@ -268,10 +272,11 @@ const OrderStatusModal = ({ order, onClose, onUpdate }) => {
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose} className="fixed inset-0 bg-black/50 z-50" />
+        onClick={onClose} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-2xl p-8 z-50"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm bg-white rounded-2xl p-8"
       >
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm tracking-widest uppercase font-semibold">Modifier le statut</h3>
@@ -292,6 +297,7 @@ const OrderStatusModal = ({ order, onClose, onUpdate }) => {
             {loading ? 'Chargement...' : 'Confirmer'}
           </button>
         </div>
+      </motion.div>
       </motion.div>
     </>
   );

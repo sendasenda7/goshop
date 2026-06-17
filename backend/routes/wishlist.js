@@ -7,7 +7,7 @@ const {
   moveAllToCart,
   clearWishlist,
 } = require('../controllers/wishlistController');
-const { protect } = require('../middleware/auth');
+const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
 router.get('/', getWishlist);
