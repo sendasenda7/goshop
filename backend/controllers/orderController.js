@@ -37,6 +37,8 @@ const createOrder = async (req, res) => {
 
     const order = new Order({
       user: req.user._id,
+      customerName: req.user.name,
+      customerEmail: req.user.email,
       items: orderItems,
       totalPrice,
       shippingAddress: req.body.shippingAddress,
@@ -102,7 +104,7 @@ const updateOrderToPaid = async (req, res) => {
     if (!order) {
       return res.status(404).json({ message: 'Commande non trouvée' });
     }
-    order.isPaid = true;
+    order.paymentStatus = 'paid';
     order.paidAt = Date.now();
     order.paymentResult = {
       id: req.body.id,

@@ -357,13 +357,13 @@ const AdminPage = () => {
     try {
       const res = await api.get('/admin/stats');
       setDashboardData({
-        totalRevenue: res.data.totalRevenue || 0,
-        totalOrders: res.data.totalOrders || 0,
-        totalCustomers: res.data.totalCustomers || 0,
-        totalProducts: res.data.totalProducts || 0,
+        totalRevenue: res.data.stats?.totalRevenue || 0,
+        totalOrders: res.data.stats?.totalOrders || 0,
+        totalCustomers: res.data.stats?.totalClients || 0,
+        totalProducts: res.data.stats?.totalProducts || 0,
         categoryData: res.data.categoryData || [],
-        weeklySales: res.data.weeklySales || [],
-        monthlyRevenue: res.data.monthlyRevenue || []
+        weeklySales: res.data.weeklyChart || [],
+        monthlyRevenue: res.data.chartData || []
       });
     } catch (err) {
       console.error('Erreur chargement stats', err);
@@ -712,7 +712,7 @@ const AdminPage = () => {
                               className="border-b border-black/3 hover:bg-gs-light/50 transition-colors">
                               <td className="py-3 pr-4 text-xs font-medium">#{order._id?.slice(-6).toUpperCase()}</td>
                               <td className="py-3 pr-4 text-xs font-light text-gs-gray">
-                                {order.user?.name || 'Client supprimé'}
+                                {order.user?.name || order.customerName || 'Client supprimé'}
                               </td>
                               <td className="py-3 pr-4 text-xs font-light text-gs-gray">{formatDate(order.createdAt)}</td>
                               <td className="py-3 pr-4 text-xs font-semibold">{order.totalPrice} TND</td>
@@ -850,8 +850,8 @@ const AdminPage = () => {
                               transition={{ delay: i * 0.05 }} className="border-t border-black/5 hover:bg-gs-light/30 transition-colors">
                               <td className="px-6 py-4 text-xs font-medium">#{order._id?.slice(-6).toUpperCase()}</td>
                               <td className="px-6 py-4">
-                                <p className="text-xs font-medium">{order.user?.name || 'Client supprimé'}</p>
-                                <p className="text-[10px] text-gs-gray font-light">{order.user?.email || ''}</p>
+                                <p className="text-xs font-medium">{order.user?.name || order.customerName || 'Client supprimé'}</p>
+                                <p className="text-[10px] text-gs-gray font-light">{order.user?.email || order.customerEmail || ''}</p>
                               </td>
                               <td className="px-6 py-4 text-xs font-light text-gs-gray">{formatDate(order.createdAt)}</td>
                               <td className="px-6 py-4 text-xs text-gs-gray font-light">{order.items?.length || 0}</td>
@@ -860,9 +860,13 @@ const AdminPage = () => {
                                 <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded-full ${
                                   order.paymentStatus === 'paid' ? 'bg-green-50 text-green-600' :
                                   order.paymentStatus === 'failed' ? 'bg-red-50 text-red-500' :
+                                  order.paymentStatus === 'refunded' ? 'bg-gray-100 text-gray-500' :
                                   'bg-yellow-50 text-yellow-600'
                                 }`}>
-                                  {order.paymentStatus === 'paid' ? 'Payé' : order.paymentStatus === 'failed' ? 'Échoué' : 'En attente'}
+                                  {order.paymentStatus === 'paid' ? 'Payé' :
+                                   order.paymentStatus === 'failed' ? 'Échoué' :
+                                   order.paymentStatus === 'refunded' ? 'Remboursé' :
+                                   'En attente'}
                                 </span>
                               </td>
                               <td className="px-6 py-4">

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiArrowRight, FiCheck, FiCreditCard, FiMapPin, FiPackage } from 'react-icons/fi';
+import { FiArrowLeft, FiArrowRight, FiCheck, FiCreditCard, FiMapPin, FiPackage, FiAlertCircle } from 'react-icons/fi';
 import Navbar from '../components/layout/Navbar';
 import { useCart } from '../context/CartContext';
+import api from '../utils/api';
 
 const steps = ['Livraison', 'Paiement', 'Confirmation'];
 
@@ -12,6 +13,8 @@ const steps = ['Livraison', 'Paiement', 'Confirmation'];
 const CheckoutPage = () => {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [orderNumber, setOrderNumber] = useState('');
   const navigate = useNavigate();
 
 
@@ -42,17 +45,44 @@ const { cart, total: subtotal, clearCart } = useCart();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePaymentSubmit = (e) => {
+  const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const { data: order } = await api.post('/orders', {
+        shippingAddress: shipping,
+        paymentMethod: payment.method,
+      });
+
+      // Carte et virement sont considérés comme payés immédiatement (simulation).
+      // L'espèces reste 'pending' jusqu'à la livraison.
+      if (payment.method !== 'cash') {
+        try {
+          await api.put(`/orders/${order._id}/pay`, {
+            id: `SIM-${order._id}`,
+            status: 'completed',
+            update_time: new Date().toISOString(),
+            email_address: '',
+          });
+        } catch (payErr) {
+          console.error('Erreur lors de la confirmation du paiement', payErr);
+        }
+      }
+
+      setOrderNumber(order._id);
       setStep(2);
-      // Vide le panier local après confirmation
       clearCart();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    }, 2000);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+        'Une erreur est survenue lors de la création de votre commande. Veuillez réessayer.'
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -350,6 +380,17 @@ const { cart, total: subtotal, clearCart } = useCart();
                     )}
                   </AnimatePresence>
 
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 bg-red-50 text-red-600 text-xs font-light rounded-xl p-4 mt-6"
+                    >
+                      <FiAlertCircle size={16} className="flex-shrink-0" />
+                      {error}
+                    </motion.div>
+                  )}
+
                   <div className="flex gap-3 mt-6">
                     <button
                       type="button"
@@ -407,7 +448,7 @@ const { cart, total: subtotal, clearCart } = useCart();
                     Merci pour votre commande !
                   </p>
                   <p className="text-gs-gray text-sm font-light mb-8">
-                    Numero de commande : <span className="text-gs-black font-medium">#GS-2024-001</span>
+                    Numero de commande : <span className="text-gs-black font-medium">#{orderNumber ? orderNumber.slice(-8).toUpperCase() : '—'}</span>
                   </p>
 
                   <div className="flex items-center justify-center gap-4 mb-10 text-sm">

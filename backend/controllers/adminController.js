@@ -11,9 +11,9 @@ const getDashboardStats = async (req, res) => {
     const totalProducts = await Product.countDocuments();
     const outOfStock = await Product.countDocuments({ stock: 0 });
 
-    // Chiffre d'affaires total (commandes livrées ou payées)
+    // Chiffre d'affaires total (payées et non annulées)
     const revenueResult = await Order.aggregate([
-      { $match: { paymentStatus: 'paid' } },
+      { $match: { paymentStatus: 'paid', orderStatus: { $ne: 'cancelled' } } },
       { $group: { _id: null, total: { $sum: '$totalPrice' } } }
     ]);
     const totalRevenue = revenueResult[0]?.total || 0;
@@ -26,7 +26,15 @@ const getDashboardStats = async (req, res) => {
         $group: {
           _id: { $month: '$createdAt' },
           orders: { $sum: 1 },
-          revenue: { $sum: '$totalPrice' }
+          revenue: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$paymentStatus', 'paid'] }, { $ne: ['$orderStatus', 'cancelled'] }] },
+                '$totalPrice',
+                0
+              ]
+            }
+          }
         }
       },
       { $sort: { _id: 1 } }
@@ -50,7 +58,16 @@ const getDashboardStats = async (req, res) => {
       {
         $group: {
           _id: { $dayOfWeek: '$createdAt' },
-          orders: { $sum: 1 }
+          orders: { $sum: 1 },
+          revenue: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$paymentStatus', 'paid'] }, { $ne: ['$orderStatus', 'cancelled'] }] },
+                '$totalPrice',
+                0
+              ]
+            }
+          }
         }
       }
     ]);
@@ -60,11 +77,11 @@ const getDashboardStats = async (req, res) => {
       // MongoDB: 1=Dim, 2=Lun... donc Lun=2
       const mongoDay = i + 2 > 7 ? 1 : i + 2;
       const found = weeklyData.find(d => d._id === mongoDay);
-      return { day, orders: found?.orders || 0 };
+      return { day, orders: found?.orders || 0, revenue: found?.revenue || 0 };
     });
 
     // Répartition par catégorie
-    const categoryData = await Order.aggregate([
+    const categoryRaw = await Order.aggregate([
       { $unwind: '$items' },
       {
         $lookup: {
@@ -82,6 +99,14 @@ const getDashboardStats = async (req, res) => {
         }
       }
     ]);
+
+    // Le frontend (PieChart) attend { name, value, color }, pas { _id, total }
+    const categoryColors = ['#c9a96e', '#0a0a0a', '#8b7355', '#d4af87', '#5c4b3a', '#a68a64'];
+    const categoryData = categoryRaw.map((cat, i) => ({
+      name: cat._id || 'Autre',
+      value: cat.total,
+      color: categoryColors[i % categoryColors.length]
+    }));
 
     // Dernières commandes récentes
     const recentOrders = await Order.find()
@@ -148,7 +173,21 @@ const updateOrderStatus = async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Commande non trouvée' });
     order.orderStatus = orderStatus;
-    if (orderStatus === 'delivered') order.deliveredAt = Date.now();
+    if (orderStatus === 'delivered') {
+      order.deliveredAt = Date.now();
+      // Paiement à la livraison : l'argent est encaissé au moment de la livraison
+      if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
+        order.paymentStatus = 'paid';
+        order.paidAt = Date.now();
+      }
+    } else if (orderStatus === 'cancelled') {
+      // Une commande annulée ne doit jamais rester affichée/comptée comme "payée"
+      if (order.paymentStatus === 'paid') {
+        order.paymentStatus = 'refunded'; // argent déjà encaissé -> à rembourser
+      } else if (order.paymentStatus === 'pending') {
+        order.paymentStatus = 'failed'; // ne sera jamais encaissé
+      }
+    }
     const updatedOrder = await order.save();
     res.json({ order: updatedOrder });
   } catch (error) {
