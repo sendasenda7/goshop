@@ -15,6 +15,7 @@ const orderSchema = new mongoose.Schema({
   totalPrice: { type: Number, required: true },
   shippingAddress: { type: Object, required: true },
   paymentMethod: { type: String, required: true },
+  
   paymentStatus: { type: String, default: 'pending' }, // pending, paid, failed, refunded
   orderStatus: { type: String, default: 'processing' }, // processing, shipped, delivered, cancelled
   paidAt: Date,

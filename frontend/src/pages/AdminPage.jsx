@@ -312,15 +312,17 @@ const AdminPage = () => {
   const [chartPeriod, setChartPeriod] = useState('annee');
 
   // Dashboard stats (réelles)
-  const [dashboardData, setDashboardData] = useState({
-    totalRevenue: 0,
-    totalOrders: 0,
-    totalCustomers: 0,
-    totalProducts: 0,
-    categoryData: [],
-    weeklySales: [],
-    monthlyRevenue: []
-  });
+const [dashboardData, setDashboardData] = useState({
+  totalRevenue: 0,
+  totalOrders: 0,
+  totalCustomers: 0,
+  totalProducts: 0,
+  outOfStock: 0,
+  categoryData: [],
+  weeklySales: [],
+  monthlyRevenue: [],
+  recentOrders: []
+});
   const [statsLoading, setStatsLoading] = useState(false);
 
   // Products state
@@ -356,15 +358,18 @@ const AdminPage = () => {
     setStatsLoading(true);
     try {
       const res = await api.get('/admin/stats');
-      setDashboardData({
-        totalRevenue: res.data.stats?.totalRevenue || 0,
-        totalOrders: res.data.stats?.totalOrders || 0,
-        totalCustomers: res.data.stats?.totalClients || 0,
-        totalProducts: res.data.stats?.totalProducts || 0,
-        categoryData: res.data.categoryData || [],
-        weeklySales: res.data.weeklyChart || [],
-        monthlyRevenue: res.data.chartData || []
-      });
+const stats = res.data?.stats || {};
+setDashboardData({
+  totalRevenue: stats.totalRevenue || 0,
+  totalOrders: stats.totalOrders || 0,
+  totalCustomers: stats.totalClients || 0,
+  totalProducts: stats.totalProducts || 0,
+  outOfStock: stats.outOfStock || 0,
+  categoryData: res.data?.categoryData || [],
+  weeklySales: res.data?.weeklyChart || [],
+  monthlyRevenue: res.data?.chartData || [],
+  recentOrders: res.data?.recentOrders || []
+});
     } catch (err) {
       console.error('Erreur chargement stats', err);
       toast.error('Impossible de charger les statistiques');
@@ -456,11 +461,12 @@ const AdminPage = () => {
     fetchDashboardStats();
   };
 
-  // Mise à jour commande (statut)
-  const handleOrderUpdate = (updatedOrder) => {
-    setOrders((prev) => prev.map((o) => o._id === updatedOrder._id ? updatedOrder : o));
-    // Le dashboard n'affiche pas le statut des commandes dans les stats, mais on peut rafraîchir si besoin
-  };
+ // Mise à jour commande (statut)
+const handleOrderUpdate = (updatedOrder) => {
+  setOrders((prev) => prev.map((o) => o._id === updatedOrder._id ? updatedOrder : o));
+  // Le revenu et les graphiques dépendent du statut de paiement/commande
+  fetchDashboardStats();
+};
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
@@ -622,8 +628,8 @@ const AdminPage = () => {
                       <YAxis tick={{ fontSize: 10, fill: '#888' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '16px' }} />
-                      <Area type="monotone" dataKey="revenue" name="Revenue (TND)" stroke="#c9a96e" strokeWidth={2.5} fill="url(#revenueGrad)" dot={false} activeDot={{ r: 5, fill: '#c9a96e' }} />
-                      <Area type="monotone" dataKey="orders" name="Commandes" stroke="#0a0a0a" strokeWidth={2} fill="url(#ordersGrad)" dot={false} activeDot={{ r: 5, fill: '#0a0a0a' }} />
+                      <Area type="linear" dataKey="revenue" name="Revenue (TND)" stroke="#c9a96e" strokeWidth={2.5} fill="url(#revenueGrad)" dot={{ r: 3, fill: '#c9a96e', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#c9a96e' }} />
+                      <Area type="linear" dataKey="orders" name="Commandes" stroke="#0a0a0a" strokeWidth={2} fill="url(#ordersGrad)" dot={{ r: 3, fill: '#0a0a0a', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#0a0a0a' }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </motion.div>

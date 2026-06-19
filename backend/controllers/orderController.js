@@ -151,6 +151,4 @@ module.exports = {
   getMyOrders,
   getOrderById,
   updateOrderToPaid,
-  getAllOrders,
-  updateOrderStatus,
 };

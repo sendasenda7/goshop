@@ -11,10 +11,10 @@ const steps = ['Livraison', 'Paiement', 'Confirmation'];
 
 
 const CheckoutPage = () => {
+  const [orderNumber, setOrderNumber] = useState(null);
   const [step, setStep] = useState(0);
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
   const navigate = useNavigate();
 
 
@@ -45,46 +45,40 @@ const { cart, total: subtotal, clearCart } = useCart();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const { data: order } = await api.post('/orders', {
-        shippingAddress: shipping,
-        paymentMethod: payment.method,
-      });
 
-      // Carte et virement sont considérés comme payés immédiatement (simulation).
-      // L'espèces reste 'pending' jusqu'à la livraison.
-      if (payment.method !== 'cash') {
-        try {
-          await api.put(`/orders/${order._id}/pay`, {
-            id: `SIM-${order._id}`,
-            status: 'completed',
-            update_time: new Date().toISOString(),
-            email_address: '',
-          });
-        } catch (payErr) {
-          console.error('Erreur lors de la confirmation du paiement', payErr);
-        }
+const handlePaymentSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
+  try {
+    const { data: order } = await api.post('/orders', {
+      shippingAddress: shipping,
+      paymentMethod: payment.method,
+    });
+
+    if (payment.method !== 'cash') {
+      try {
+        await api.put(`/orders/${order._id}/pay`, {
+          id: `SIM-${order._id}`,
+          status: 'completed',
+          update_time: new Date().toISOString(),
+          email_address: '',
+        });
+      } catch (payErr) {
+        console.error('Erreur lors de la confirmation du paiement', payErr);
       }
-
-      setOrderNumber(order._id);
-      setStep(2);
-      clearCart();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-        'Une erreur est survenue lors de la création de votre commande. Veuillez réessayer.'
-      );
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } finally {
-      setLoading(false);
     }
-  };
 
+    setOrderNumber(order._id);
+    setStep(2);
+    clearCart();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    setError(err.response?.data?.message || 'Erreur lors de la création de la commande');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="min-h-screen bg-gs-light">
       <Navbar />
@@ -447,9 +441,11 @@ const { cart, total: subtotal, clearCart } = useCart();
                   <p className="text-gs-gray text-sm font-light mb-2">
                     Merci pour votre commande !
                   </p>
-                  <p className="text-gs-gray text-sm font-light mb-8">
-                    Numero de commande : <span className="text-gs-black font-medium">#{orderNumber ? orderNumber.slice(-8).toUpperCase() : '—'}</span>
-                  </p>
+<p className="text-gs-gray text-sm font-light mb-8">
+  Numero de commande : <span className="text-gs-black font-medium">
+    #{orderNumber ? orderNumber.slice(-8).toUpperCase() : '—'}
+  </span>
+</p>
 
                   <div className="flex items-center justify-center gap-4 mb-10 text-sm">
                     <div className="flex items-center gap-2 text-gs-gray font-light">

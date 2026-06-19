@@ -53,60 +53,72 @@ const getDashboardStats = async (req, res) => {
     startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Lundi
     startOfWeek.setHours(0, 0, 0, 0);
 
-    const weeklyData = await Order.aggregate([
-      { $match: { createdAt: { $gte: startOfWeek } } },
-      {
-        $group: {
-          _id: { $dayOfWeek: '$createdAt' },
-          orders: { $sum: 1 },
-          revenue: {
-            $sum: {
-              $cond: [
-                { $and: [{ $eq: ['$paymentStatus', 'paid'] }, { $ne: ['$orderStatus', 'cancelled'] }] },
-                '$totalPrice',
-                0
-              ]
-            }
-          }
-        }
-      }
-    ]);
+  const weeklyData = await Order.aggregate([
+  { $match: { createdAt: { $gte: startOfWeek } } },
+  {
+    $group: {
+      _id: { $dayOfWeek: '$createdAt' },
+      orders: { $sum: 1 },
+      revenue: { $sum: '$totalPrice' }
+    }
+  }
+]);
 
-    const days = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-    const weeklyChart = days.map((day, i) => {
-      // MongoDB: 1=Dim, 2=Lun... donc Lun=2
-      const mongoDay = i + 2 > 7 ? 1 : i + 2;
-      const found = weeklyData.find(d => d._id === mongoDay);
-      return { day, orders: found?.orders || 0, revenue: found?.revenue || 0 };
-    });
+const days = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+const weeklyChart = days.map((day, i) => {
+  const mongoDay = i + 2 > 7 ? 1 : i + 2;
+  const found = weeklyData.find(d => d._id === mongoDay);
+  return { day, orders: found?.orders || 0, revenue: found?.revenue || 0 };
+});
 
     // Répartition par catégorie
-    const categoryRaw = await Order.aggregate([
-      { $unwind: '$items' },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'items.product',
-          foreignField: '_id',
-          as: 'productInfo'
-        }
-      },
-      { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: '$productInfo.category',
-          total: { $sum: '$items.quantity' }
-        }
-      }
-    ]);
+// Répartition par catégorie (commandes annulées exclues)
+const categoryRaw = await Order.aggregate([
+  { $match: { orderStatus: { $ne: 'cancelled' } } },
+  { $unwind: '$items' },
+  {
+    $lookup: {
+      from: 'products',
+      localField: 'items.product',
+      foreignField: '_id',
+      as: 'productInfo'
+    }
+  },
+  { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+  {
+    $group: {
+      _id: '$productInfo.category',
+      total: { $sum: '$items.quantity' }
+    }
+  }
+]);
 
     // Le frontend (PieChart) attend { name, value, color }, pas { _id, total }
-    const categoryColors = ['#c9a96e', '#0a0a0a', '#8b7355', '#d4af87', '#5c4b3a', '#a68a64'];
-    const categoryData = categoryRaw.map((cat, i) => ({
-      name: cat._id || 'Autre',
-      value: cat.total,
-      color: categoryColors[i % categoryColors.length]
-    }));
+    const categoryDataRaw = await Order.aggregate([
+  { $unwind: '$items' },
+  {
+    $lookup: {
+      from: 'products',
+      localField: 'items.product',
+      foreignField: '_id',
+      as: 'productInfo'
+    }
+  },
+  { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+  {
+    $group: {
+      _id: '$productInfo.category',
+      total: { $sum: '$items.quantity' }
+    }
+  }
+]);
+
+const categoryColors = ['#c9a96e', '#0a0a0a', '#3b82f6', '#a855f7', '#22c55e', '#ef4444'];
+const categoryData = categoryDataRaw.map((c, i) => ({
+  name: c._id || 'Autre',
+  value: c.total,
+  color: categoryColors[i % categoryColors.length]
+}));
 
     // Dernières commandes récentes
     const recentOrders = await Order.find()
