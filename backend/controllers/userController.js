@@ -6,11 +6,22 @@ const Order = require('../models/Order');
 // @access  Private
 const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    // req.user est déjà chargé par le middleware protect
+    const user = req.user;
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    res.json(user);
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      avatar: user.avatar || '',
+      addresses: user.addresses || [],
+      wishlist: user.wishlist || [],
+      createdAt: user.createdAt,
+    });
   } catch (error) {
-    console.error(error);
+    console.error('getUserProfile error:', error);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 };
@@ -20,16 +31,24 @@ const getUserProfile = async (req, res) => {
 // @access  Private
 const updateUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('+password');
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
 
     user.name = req.body.name || user.name;
     user.email = req.body.email || user.email;
     user.phone = req.body.phone || user.phone;
     user.addresses = req.body.addresses || user.addresses;
+
     if (req.body.password) {
-      const bcrypt = require('bcryptjs');
-      user.password = await bcrypt.hash(req.body.password, 10);
+      // Vérifier le mot de passe actuel avant de permettre le changement
+      if (!req.body.currentPassword) {
+        return res.status(400).json({ message: 'Mot de passe actuel requis' });
+      }
+      const isMatch = await user.matchPassword(req.body.currentPassword);
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
+      }
+      user.password = req.body.password; // le pre-save hook hash automatiquement
     }
 
     const updatedUser = await user.save();
@@ -40,6 +59,7 @@ const updateUserProfile = async (req, res) => {
       phone: updatedUser.phone,
       addresses: updatedUser.addresses,
       role: updatedUser.role,
+      createdAt: updatedUser.createdAt,
     });
   } catch (error) {
     console.error(error);
@@ -54,6 +74,19 @@ const getUserOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
     res.json(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
+// @desc    Supprimer le compte utilisateur
+// @route   DELETE /api/users/profile
+// @access  Private
+const deleteUserAccount = async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.user._id);
+    res.json({ message: 'Compte supprimé avec succès' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -114,6 +147,7 @@ const removeFromWishlist = async (req, res) => {
 module.exports = {
   getUserProfile,
   updateUserProfile,
+  deleteUserAccount,
   getUserOrders,
   getWishlist,
   addToWishlist,

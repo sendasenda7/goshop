@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getUserProfile,
   updateUserProfile,
+  deleteUserAccount,
   getUserOrders,
   addToWishlist,
   removeFromWishlist,
@@ -15,6 +16,7 @@ router.use(protect);
 
 router.get('/profile', getUserProfile);
 router.put('/profile', updateUserProfile);
+router.delete('/profile', deleteUserAccount);
 router.get('/orders', getUserOrders);
 router.get('/wishlist', getWishlist);
 router.post('/wishlist', addToWishlist);
