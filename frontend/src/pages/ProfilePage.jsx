@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FiUser, FiPackage, FiHeart, FiMapPin,
-  FiSettings, FiLogOut, FiEdit2, FiCheck,
-  FiCamera
+  FiSettings, FiLogOut, FiEdit2, FiCheck, FiCamera
 } from 'react-icons/fi';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
@@ -14,27 +13,28 @@ import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const tabs = [
-  { id: 'profile', label: 'Mon Profil', icon: <FiUser size={16} /> },
-  { id: 'orders', label: 'Mes Commandes', icon: <FiPackage size={16} /> },
-  { id: 'wishlist', label: 'Wishlist', icon: <FiHeart size={16} /> },
-  { id: 'addresses', label: 'Mes Adresses', icon: <FiMapPin size={16} /> },
-  { id: 'settings', label: 'Parametres', icon: <FiSettings size={16} /> },
+  { id: 'profile',   label: 'Mon Profil',      icon: <FiUser size={16} /> },
+  { id: 'orders',    label: 'Mes Commandes',    icon: <FiPackage size={16} /> },
+  { id: 'wishlist',  label: 'Wishlist',         icon: <FiHeart size={16} /> },
+  { id: 'addresses', label: 'Mes Adresses',     icon: <FiMapPin size={16} /> },
+  { id: 'settings',  label: 'Parametres',       icon: <FiSettings size={16} /> },
 ];
 
 const statusColors = {
   processing: 'bg-yellow-50 text-yellow-600',
-  shipped: 'bg-blue-50 text-blue-500',
-  delivered: 'bg-green-50 text-green-600',
-  cancelled: 'bg-red-50 text-red-500',
+  shipped:    'bg-blue-50 text-blue-500',
+  delivered:  'bg-green-50 text-green-600',
+  cancelled:  'bg-red-50 text-red-500',
 };
 
 const statusLabels = {
   processing: 'En traitement',
-  shipped: 'Expedition',
-  delivered: 'Livre',
-  cancelled: 'Annule',
+  shipped:    'Expédition',
+  delivered:  'Livré',
+  cancelled:  'Annulé',
 };
 
+// ─── SettingsTab ───────────────────────────────────────────────────────────────
 const SettingsTab = ({ onDeleteAccount }) => {
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   const [pwLoading, setPwLoading] = useState(false);
@@ -56,7 +56,7 @@ const SettingsTab = ({ onDeleteAccount }) => {
         currentPassword: passwords.current,
       });
       setPasswords({ current: '', next: '', confirm: '' });
-      toast.success('Mot de passe mis a jour !');
+      toast.success('Mot de passe mis à jour !');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur lors du changement');
     } finally {
@@ -84,7 +84,7 @@ const SettingsTab = ({ onDeleteAccount }) => {
             {[
               { label: 'Mot de passe actuel', key: 'current' },
               { label: 'Nouveau mot de passe', key: 'next' },
-              { label: 'Confirmer', key: 'confirm' },
+              { label: 'Confirmer',            key: 'confirm' },
             ].map((field) => (
               <div key={field.key}>
                 <label className="label-tag mb-2 block">{field.label}</label>
@@ -115,8 +115,8 @@ const SettingsTab = ({ onDeleteAccount }) => {
           <div className="space-y-3">
             {[
               { label: 'Confirmation de commande', default: true },
-              { label: 'Offres et promotions', default: false },
-              { label: 'Nouveautes et drops', default: true },
+              { label: 'Offres et promotions',     default: false },
+              { label: 'Nouveautes et drops',      default: true },
             ].map((notif) => (
               <div key={notif.label} className="flex items-center justify-between">
                 <span className="text-sm font-light">{notif.label}</span>
@@ -135,8 +135,9 @@ const SettingsTab = ({ onDeleteAccount }) => {
             Zone Dangereuse
           </h3>
           <button
-              onClick={onDeleteAccount}
-              className="text-xs tracking-widest uppercase border border-red-200 text-red-400 px-4 py-2 hover:bg-red-50 transition-colors">
+            onClick={onDeleteAccount}
+            className="text-xs tracking-widest uppercase border border-red-200 text-red-400 px-4 py-2 hover:bg-red-50 transition-colors"
+          >
             Supprimer mon compte
           </button>
         </div>
@@ -146,42 +147,44 @@ const SettingsTab = ({ onDeleteAccount }) => {
   );
 };
 
+// ─── ProfilePage ───────────────────────────────────────────────────────────────
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { wishlist, removeFromWishlist } = useWishlist();
 
-  const [activeTab, setActiveTab] = useState('profile');
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [userData, setUserData] = useState({ name: '', email: '', phone: '' });
-  const [addresses, setAddresses] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [activeTab, setActiveTab]           = useState('profile');
+  const [editing, setEditing]               = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [userData, setUserData]             = useState({ name: '', email: '', phone: '' });
+  const [avatar, setAvatar]                 = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [addresses, setAddresses]           = useState([]);
+  const [orders, setOrders]                 = useState([]);
+  const [ordersLoading, setOrdersLoading]   = useState(true);
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [newAddress, setNewAddress] = useState({ fullName: '', street: '', city: '', zipCode: '', country: 'Tunisie', isDefault: false });
-  const [addressSaving, setAddressSaving] = useState(false);
+  const [newAddress, setNewAddress]         = useState({ fullName: '', street: '', city: '', zipCode: '', country: 'Tunisie', isDefault: false });
+  const [addressSaving, setAddressSaving]   = useState(false);
+
+  const avatarInputRef = useRef(null);
 
   // Redirection si non connecté
   useEffect(() => {
-    if (!user && !localStorage.getItem('token')) {
-      navigate('/login');
-    }
+    if (!user && !localStorage.getItem('token')) navigate('/login');
   }, [user, navigate]);
 
+  // Remplir les données depuis le contexte Auth
   useEffect(() => {
     if (user) {
-      setUserData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-      });
+      setUserData({ name: user.name || '', email: user.email || '', phone: user.phone || '' });
       setAddresses(user.addresses || []);
+      setAvatar(user.avatar || '');
     }
   }, [user]);
 
+  // Fetch commandes
   useEffect(() => {
-    if (!user) return; // Ne pas fetcher si non connecté
+    if (!user) return;
     const fetchOrders = async () => {
       try {
         const res = await api.get('/users/orders');
@@ -195,6 +198,51 @@ const ProfilePage = () => {
     fetchOrders();
   }, [user]);
 
+  // Upload avatar
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image trop lourde (max 2 MB)'); return;
+    }
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await api.post('/users/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAvatar(res.data.avatar);
+      updateUser({ avatar: res.data.avatar });
+      toast.success('Photo de profil mise à jour !');
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Erreur lors de l'upload");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // Sauvegarder le profil
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await api.put('/users/profile', {
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone,
+      });
+      setUserData({ name: res.data.name, email: res.data.email, phone: res.data.phone || '' });
+      updateUser({ name: res.data.name, email: res.data.email, phone: res.data.phone || '' });
+      setEditing(false);
+      toast.success('Profil mis à jour !');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Ajouter une adresse
   const handleAddAddress = async () => {
     if (!newAddress.fullName || !newAddress.street || !newAddress.city || !newAddress.zipCode) {
       toast.error('Veuillez remplir tous les champs obligatoires'); return;
@@ -208,12 +256,13 @@ const ProfilePage = () => {
       setShowAddressForm(false);
       toast.success('Adresse ajoutée !');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur lors de l\'ajout');
+      toast.error(err.response?.data?.message || "Erreur lors de l'ajout");
     } finally {
       setAddressSaving(false);
     }
   };
 
+  // Supprimer une adresse
   const handleDeleteAddress = async (index) => {
     try {
       const updatedAddresses = addresses.filter((_, i) => i !== index);
@@ -225,6 +274,7 @@ const ProfilePage = () => {
     }
   };
 
+  // Supprimer le compte
   const handleDeleteAccount = async () => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.')) return;
     try {
@@ -237,24 +287,7 @@ const ProfilePage = () => {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await api.put('/users/profile', {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone,
-      });
-      setUserData({ name: res.data.name, email: res.data.email, phone: res.data.phone || '' });
-      setEditing(false);
-      toast.success('Profil mis a jour !');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur lors de la mise a jour');
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  // Déconnexion
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -267,11 +300,7 @@ const ProfilePage = () => {
       <div className="pt-24 pb-16 px-6 md:px-12 max-w-6xl mx-auto">
 
         {/* HEADER */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <p className="label-tag text-gs-gold mb-2">Mon Espace</p>
           <h1 className="font-display text-5xl font-light italic">
             Mon <span className="font-semibold">Compte</span>
@@ -292,11 +321,35 @@ const ProfilePage = () => {
               {/* Avatar */}
               <div className="text-center mb-6">
                 <div className="relative inline-block">
-                  <div className="w-20 h-20 bg-gs-beige rounded-full flex items-center justify-center mx-auto mb-3">
-                    <FiUser size={32} className="text-gs-gray" />
+                  <div className="w-20 h-20 bg-gs-beige rounded-full flex items-center justify-center mx-auto mb-3 overflow-hidden">
+                    {avatar ? (
+                      <img
+                        src={`http://localhost:5000${avatar}`}
+                        alt="avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <FiUser size={32} className="text-gs-gray" />
+                    )}
                   </div>
-                  <button className="absolute bottom-3 right-0 w-7 h-7 bg-gs-black text-white rounded-full flex items-center justify-center hover:bg-gs-gold transition-colors">
-                    <FiCamera size={12} />
+                  {/* Input file caché */}
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                  <button
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="absolute bottom-3 right-0 w-7 h-7 bg-gs-black text-white rounded-full flex items-center justify-center hover:bg-gs-gold transition-colors disabled:opacity-50"
+                  >
+                    {avatarUploading ? (
+                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <FiCamera size={12} />
+                    )}
                   </button>
                 </div>
                 <h3 className="font-medium text-sm">{userData.name}</h3>
@@ -329,7 +382,10 @@ const ProfilePage = () => {
 
               {/* Logout */}
               <div className="mt-4 pt-4 border-t border-black/5">
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-red-400 hover:text-red-600 transition-colors">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-red-400 hover:text-red-600 transition-colors"
+                >
                   <FiLogOut size={16} />
                   <span>Deconnexion</span>
                 </button>
@@ -369,40 +425,66 @@ const ProfilePage = () => {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {[
-                      { label: 'Nom complet', key: 'name', type: 'text' },
-                      { label: 'Email', key: 'email', type: 'email' },
-                      { label: 'Telephone', key: 'phone', type: 'tel' },
-                    ].map((field) => (
-                      <div key={field.key} className={field.key === 'phone' ? 'md:col-span-2' : ''}>
-                        <label className="label-tag mb-2 block">{field.label}</label>
-                        {editing ? (
-                          <input
-                            type={field.type}
-                            value={userData[field.key]}
-                            onChange={(e) => setUserData({ ...userData, [field.key]: e.target.value })}
-                            className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light"
-                          />
-                        ) : (
-                          <p className="text-sm font-light py-3 border-b border-black/5">
-                            {userData[field.key] || '-'}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    {/* Nom */}
+                    <div>
+                      <label className="label-tag mb-2 block">Nom Complet</label>
+                      {editing ? (
+                        <input
+                          type="text"
+                          value={userData.name}
+                          onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+                          className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light"
+                        />
+                      ) : (
+                        <p className="text-sm font-light py-3 border-b border-black/5">{userData.name}</p>
+                      )}
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="label-tag mb-2 block">Email</label>
+                      {editing ? (
+                        <input
+                          type="email"
+                          value={userData.email}
+                          onChange={(e) => setUserData({ ...userData, email: e.target.value })}
+                          className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light"
+                        />
+                      ) : (
+                        <p className="text-sm font-light py-3 border-b border-black/5">{userData.email}</p>
+                      )}
+                    </div>
+
+                    {/* Téléphone */}
+                    <div>
+                      <label className="label-tag mb-2 block">Telephone</label>
+                      {editing ? (
+                        <input
+                          type="tel"
+                          value={userData.phone}
+                          onChange={(e) => setUserData({ ...userData, phone: e.target.value })}
+                          className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light"
+                          placeholder="+216 XX XXX XXX"
+                        />
+                      ) : (
+                        <p className="text-sm font-light py-3 border-b border-black/5">
+                          {userData.phone || <span className="text-gs-gray italic">Non renseigné</span>}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-4 mt-8 pt-8 border-t border-black/5">
                     {[
                       { label: 'Commandes', value: orders.length },
-                      { label: 'Wishlist', value: wishlist.length },
-                      { label: 'Adresses', value: addresses.length },
+                      { label: 'Wishlist',  value: wishlist.length },
+                      { label: 'Adresses',  value: addresses.length },
                     ].map((stat) => (
                       <div key={stat.label} className="text-center">
-                        <p className="font-display text-3xl font-semibold">{stat.value}</p>
-                        <p className="text-xs text-gs-gray font-light mt-1">{stat.label}</p>
+                        <p className="font-display text-3xl font-light">{stat.value}</p>
+                        <p className="label-tag mt-1">{stat.label}</p>
                       </div>
                     ))}
                   </div>
@@ -458,9 +540,8 @@ const ProfilePage = () => {
                           <p className="text-sm font-semibold mt-2">{order.totalPrice} TND</p>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-3 mb-4 flex-wrap">
-                        {order.items.map((item, j) => (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {order.items?.map((item, j) => (
                           <div key={j} className="flex items-center gap-2 bg-gs-light rounded-xl px-3 py-2">
                             <span className="text-xs font-light">{item.quantity}x {item.name}</span>
                           </div>
@@ -480,7 +561,7 @@ const ProfilePage = () => {
                   exit={{ opacity: 0 }}
                 >
                   <h2 className="text-sm font-semibold tracking-widest uppercase mb-4">
-                    Ma Wishlist ({wishlist.length})
+                    Wishlist ({wishlist.length})
                   </h2>
 
                   {wishlist.length === 0 ? (
@@ -543,9 +624,7 @@ const ProfilePage = () => {
                   exit={{ opacity: 0 }}
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold tracking-widest uppercase">
-                      Mes Adresses
-                    </h2>
+                    <h2 className="text-sm font-semibold tracking-widest uppercase">Mes Adresses</h2>
                     <button
                       onClick={() => setShowAddressForm(!showAddressForm)}
                       className="flex items-center gap-2 text-xs tracking-widest uppercase border border-black/20 px-4 py-2 hover:bg-gs-black hover:text-white transition-all"
@@ -554,7 +633,7 @@ const ProfilePage = () => {
                     </button>
                   </div>
 
-                  {/* Formulaire ajout adresse */}
+                  {/* Formulaire ajout */}
                   {showAddressForm && (
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
@@ -564,10 +643,10 @@ const ProfilePage = () => {
                       <h3 className="text-xs font-semibold tracking-widest uppercase mb-2">Nouvelle adresse</h3>
                       {[
                         { label: 'Nom complet *', key: 'fullName', placeholder: 'Prénom Nom' },
-                        { label: 'Rue *', key: 'street', placeholder: '12 Rue de la République' },
-                        { label: 'Ville *', key: 'city', placeholder: 'Tunis' },
-                        { label: 'Code postal *', key: 'zipCode', placeholder: '1001' },
-                        { label: 'Pays', key: 'country', placeholder: 'Tunisie' },
+                        { label: 'Rue *',         key: 'street',   placeholder: '12 Rue de la République' },
+                        { label: 'Ville *',       key: 'city',     placeholder: 'Tunis' },
+                        { label: 'Code postal *', key: 'zipCode',  placeholder: '1001' },
+                        { label: 'Pays',          key: 'country',  placeholder: 'Tunisie' },
                       ].map((field) => (
                         <div key={field.key}>
                           <label className="label-tag mb-1 block">{field.label}</label>
@@ -603,7 +682,7 @@ const ProfilePage = () => {
                     {addresses.length === 0 ? (
                       <div className="bg-white rounded-2xl p-12 text-center border border-black/5">
                         <p className="font-display text-2xl font-light italic text-gs-gray">
-                          Aucune adresse enregistree
+                          Aucune adresse enregistrée
                         </p>
                       </div>
                     ) : addresses.map((address, i) => (

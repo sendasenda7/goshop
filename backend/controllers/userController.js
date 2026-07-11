@@ -6,7 +6,6 @@ const Order = require('../models/Order');
 // @access  Private
 const getUserProfile = async (req, res) => {
   try {
-    // req.user est déjà chargé par le middleware protect
     const user = req.user;
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
     res.json({
@@ -34,13 +33,12 @@ const updateUserProfile = async (req, res) => {
     const user = await User.findById(req.user._id).select('+password');
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
 
-    user.name = req.body.name || user.name;
-    user.email = req.body.email || user.email;
-    user.phone = req.body.phone || user.phone;
-    user.addresses = req.body.addresses || user.addresses;
+    if (req.body.name !== undefined) user.name = req.body.name || user.name;
+    if (req.body.email !== undefined) user.email = req.body.email || user.email;
+    if (req.body.phone !== undefined) user.phone = req.body.phone;
+    if (req.body.addresses !== undefined) user.addresses = req.body.addresses;
 
     if (req.body.password) {
-      // Vérifier le mot de passe actuel avant de permettre le changement
       if (!req.body.currentPassword) {
         return res.status(400).json({ message: 'Mot de passe actuel requis' });
       }
@@ -48,7 +46,7 @@ const updateUserProfile = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
       }
-      user.password = req.body.password; // le pre-save hook hash automatiquement
+      user.password = req.body.password; // pre-save hook hash automatiquement
     }
 
     const updatedUser = await user.save();
@@ -56,11 +54,24 @@ const updateUserProfile = async (req, res) => {
       _id: updatedUser._id,
       name: updatedUser.name,
       email: updatedUser.email,
-      phone: updatedUser.phone,
+      phone: updatedUser.phone || '',
       addresses: updatedUser.addresses,
       role: updatedUser.role,
       createdAt: updatedUser.createdAt,
     });
+  } catch (error) {
+    console.error('updateUserProfile error:', error);
+    res.status(500).json({ message: error.message || 'Erreur serveur' });
+  }
+};
+
+// @desc    Supprimer le compte utilisateur
+// @route   DELETE /api/users/profile
+// @access  Private
+const deleteUserAccount = async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.user._id);
+    res.json({ message: 'Compte supprimé avec succès' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -74,19 +85,6 @@ const getUserOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
     res.json(orders);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
-  }
-};
-
-// @desc    Supprimer le compte utilisateur
-// @route   DELETE /api/users/profile
-// @access  Private
-const deleteUserAccount = async (req, res) => {
-  try {
-    await User.findByIdAndDelete(req.user._id);
-    res.json({ message: 'Compte supprimé avec succès' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -114,7 +112,6 @@ const addToWishlist = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
-
     if (!user.wishlist.includes(productId)) {
       user.wishlist.push(productId);
       await user.save();
@@ -134,7 +131,6 @@ const removeFromWishlist = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
-
     user.wishlist = user.wishlist.filter(id => id.toString() !== productId);
     await user.save();
     res.json({ message: 'Produit retiré de la wishlist', wishlist: user.wishlist });
@@ -144,10 +140,30 @@ const removeFromWishlist = async (req, res) => {
   }
 };
 
+// @desc    Upload photo de profil
+// @route   POST /api/users/avatar
+// @access  Private
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Aucun fichier envoyé' });
+    }
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const user = await User.findById(req.user._id);
+    user.avatar = avatarUrl;
+    await user.save();
+    res.json({ avatar: avatarUrl });
+  } catch (error) {
+    console.error('uploadAvatar error:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'upload' });
+  }
+};
+
 module.exports = {
   getUserProfile,
   updateUserProfile,
   deleteUserAccount,
+  uploadAvatar,
   getUserOrders,
   getWishlist,
   addToWishlist,

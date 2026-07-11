@@ -16,6 +16,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const wishlistRoutes = require('./routes/wishlist');
 const errorHandler = require('./middleware/errorHandler');
 
+const path = require('path');
+
 const app = express();
 
 // 1. CORS
@@ -41,6 +43,9 @@ app.use('/api/', limiter);
 
 // 3. IMPORTANT : `express.json()` DOIT être avant les routes
 app.use(express.json());
+
+// Fichiers statiques (avatars uploadés)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 4. Connexion MongoDB (sans options obsolètes)
 mongoose.connect(process.env.MONGO_URI)

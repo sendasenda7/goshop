@@ -22,11 +22,14 @@ const register = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone || '',
       role: user.role,
+      avatar: user.avatar || '',
+      addresses: user.addresses || [],
+      createdAt: user.createdAt,
     },
   });
 });
-
 // @desc    Login user
 // @route   POST /api/auth/login
 const login = asyncHandler(async (req, res) => {
@@ -52,7 +55,11 @@ const login = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone || '',
       role: user.role,
+      avatar: user.avatar || '',
+      addresses: user.addresses || [],
+      createdAt: user.createdAt,
     },
   });
 });
@@ -60,8 +67,22 @@ const login = asyncHandler(async (req, res) => {
 // @desc    Get current user
 // @route   GET /api/auth/me
 const getMe = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id);
-  res.json({ success: true, user });
+  const user = await User.findById(req.user._id).select('-password');
+  if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
+  res.json({
+    success: true,
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      avatar: user.avatar || '',
+      addresses: user.addresses || [],
+      wishlist: user.wishlist || [],
+      createdAt: user.createdAt,
+    }
+  });
 });
 
 // @desc    Logout
