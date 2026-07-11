@@ -1,40 +1,54 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiFilter, FiX, FiSearch, FiGrid, FiList } from 'react-icons/fi';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import ProductCard from '../components/product/ProductCard';
 import api from '../utils/api';
 import { ShopSkeleton } from '../components/common/Loaders';
 
-
-const categories = ['Tous', 'Femme', 'Homme', 'Cadeaux', 'Collections'];
+const categories = ['Tous', 'Femme', 'Homme', 'Sacs', 'Collections', 'Nouveautés', 'Cadeaux'];
 const sortOptions = ['Nouveautes', 'Prix croissant', 'Prix decroissant', 'Meilleures ventes'];
 
-const mockProducts = [
-  { _id: '1', name: 'The Dome', category: 'Femme', price: 380, oldPrice: 450, images: [], isNew: true, isSale: false, rating: 4.8, numReviews: 24, colors: ['beige', 'noir', 'vert'] },
-  { _id: '2', name: 'Neon Noir', category: 'Femme', price: 450, oldPrice: 0, images: [], isNew: false, isSale: false, rating: 4.9, numReviews: 18, colors: ['noir'] },
-  { _id: '3', name: 'Monolith', category: 'Homme', price: 320, oldPrice: 400, images: [], isNew: false, isSale: true, rating: 4.7, numReviews: 12, colors: ['taupe', 'noir'] },
-  { _id: '4', name: 'The Classic', category: 'Femme', price: 290, oldPrice: 0, images: [], isNew: true, isSale: false, rating: 4.6, numReviews: 31, colors: ['rose', 'beige'] },
-  { _id: '5', name: 'Urban Brief', category: 'Homme', price: 350, oldPrice: 0, images: [], isNew: false, isSale: false, rating: 4.5, numReviews: 9, colors: ['noir', 'marron'] },
-  { _id: '6', name: 'Mini Luxe', category: 'Cadeaux', price: 190, oldPrice: 250, images: [], isNew: false, isSale: true, rating: 4.8, numReviews: 42, colors: ['rouge', 'beige'] },
-  { _id: '7', name: 'SS26 Tote', category: 'Collections', price: 420, oldPrice: 0, images: [], isNew: true, isSale: false, rating: 5.0, numReviews: 7, colors: ['vert', 'creme'] },
-  { _id: '8', name: 'Belt CRK', category: 'Homme', price: 150, oldPrice: 0, images: [], isNew: false, isSale: false, rating: 4.4, numReviews: 15, colors: ['noir'] },
-];
+// Mapping URL param → nom de catégorie affiché
+const catParamToLabel = {
+  'femme': 'Femme',
+  'homme': 'Homme',
+  'sacs': 'Sacs',
+  'collections': 'Collections',
+  'nouveautés': 'Nouveautés',
+  'nouveautes': 'Nouveautés',
+  'cadeaux': 'Cadeaux',
+};
 
 const ShopPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-
-  const [products, setProducts] = useState(mockProducts);
-  const [activeCategory, setActiveCategory] = useState('Tous');
+  const [products, setProducts] = useState([]);
   const [activeSort, setActiveSort] = useState('Nouveautes');
   const [filterOpen, setFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [search, setSearch] = useState('');
   const [priceRange, setPriceRange] = useState([0, 1000]);
 
+  // Lire la catégorie depuis l'URL (?cat=femme)
+  const catParam = searchParams.get('cat') || '';
+  const activeCategory = catParamToLabel[catParam.toLowerCase()] || 'Tous';
+
+  // Changer catégorie → met à jour l'URL
+  const handleCategoryChange = (cat) => {
+    if (cat === 'Tous') {
+      searchParams.delete('cat');
+    } else {
+      searchParams.set('cat', cat.toLowerCase());
+    }
+    setSearchParams(searchParams);
+  };
+
 useEffect(() => {
   const fetchProducts = async () => {
+    setLoading(true);
     try {
       const params = new URLSearchParams();
       if (activeCategory !== 'Tous') params.append('category', activeCategory);
@@ -46,12 +60,12 @@ useEffect(() => {
       params.append('maxPrice', priceRange[1]);
 
       const res = await api.get(`/products?${params}`);
-      setProducts(res.data.products);
-      setLoading(false);
-
+      setProducts(res.data.products || []);
     } catch (err) {
       console.error(err);
-      setProducts(mockProducts); // fallback mock
+      setProducts([]);
+    } finally {
+      setLoading(false);
     }
   };
   fetchProducts();
@@ -89,7 +103,7 @@ useEffect(() => {
                 key={cat}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => setActiveCategory(cat)}
+                onClick={() => handleCategoryChange(cat)}
                 className={`text-xs tracking-widest uppercase px-5 py-2.5 transition-all duration-300 ${
                   activeCategory === cat
                     ? 'bg-gs-black text-white'
@@ -173,7 +187,7 @@ useEffect(() => {
       className="text-center py-24"
     >
       <p className="font-display text-3xl font-light italic text-gs-gray mb-4">Aucun produit trouve</p>
-      <button onClick={() => { setActiveCategory('Tous'); setSearch(''); }} className="btn-outline-black">
+      <button onClick={() => { handleCategoryChange('Tous'); setSearch(''); }} className="btn-outline-black">
         Reinitialiser
       </button>
     </motion.div>
@@ -247,7 +261,7 @@ useEffect(() => {
                   {categories.map((cat) => (
                     <button
                       key={cat}
-                      onClick={() => { setActiveCategory(cat); setFilterOpen(false); }}
+                      onClick={() => { handleCategoryChange(cat); setFilterOpen(false); }}
                       className={`block w-full text-left text-sm py-2 border-b border-black/5 hover:text-gs-gold transition-colors ${
                         activeCategory === cat ? 'text-gs-gold font-medium' : 'text-gs-gray font-light'
                       }`}
