@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FiUser, FiPackage, FiHeart, FiMapPin,
   FiSettings, FiLogOut, FiEdit2, FiCheck, FiCamera
@@ -153,7 +153,28 @@ const ProfilePage = () => {
   const { user, logout, updateUser } = useAuth();
   const { wishlist, removeFromWishlist } = useWishlist();
 
-  const [activeTab, setActiveTab]           = useState('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabIds = tabs.map((t) => t.id);
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTabState] = useState(
+    validTabIds.includes(tabFromUrl) ? tabFromUrl : 'profile'
+  );
+
+  // Garde l'URL synchronisée quand l'onglet change (utile pour les liens
+  // profonds, ex: /profile?tab=orders depuis le footer "Suivi Commande").
+  const setActiveTab = (tabId) => {
+    setActiveTabState(tabId);
+    setSearchParams(tabId === 'profile' ? {} : { tab: tabId });
+  };
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (validTabIds.includes(tab) && tab !== activeTab) {
+      setActiveTabState(tab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const [editing, setEditing]               = useState(false);
   const [saving, setSaving]                 = useState(false);
   const [userData, setUserData]             = useState({ name: '', email: '', phone: '' });

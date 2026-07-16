@@ -5,6 +5,7 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
+import toast from 'react-hot-toast';
 
 const colorMap = {
   beige: '#d4b896', noir: '#0a0a0a', vert: '#7a9e7e',
@@ -22,8 +23,10 @@ const WishlistPage = () => {
     try {
       await addToCart(product._id, 1, product.sizes?.[0] || '', product.colors?.[0] || '');
       await removeFromWishlist(product._id);
+      toast.success(`${product.name} déplacé vers le panier`);
     } catch (err) {
       console.error('Erreur ajout panier:', err);
+      toast.error("Impossible d'ajouter ce produit au panier");
     }
   };
 

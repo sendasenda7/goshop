@@ -10,8 +10,19 @@ export const productImages = {
   'default': 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=800&q=80',
 };
 
-export const getProductImage = (name) => {
-  return productImages[name] || productImages['default'];
+// Index normalisé (clé en minuscule) pour que le lookup ne dépende plus de la casse
+// exacte utilisée dans les composants (ex: 'NEON NOIR' vs 'Neon Noir').
+const normalizedProductImages = Object.entries(productImages).reduce(
+  (acc, [key, value]) => {
+    acc[key.trim().toLowerCase()] = value;
+    return acc;
+  },
+  {}
+);
+
+export const getProductImage = (name = '') => {
+  const key = name.trim().toLowerCase();
+  return normalizedProductImages[key] || productImages['default'];
 };
 
 export const heroImages = {
@@ -25,4 +36,18 @@ export const categoryImages = {
   Homme: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&q=80',
   Cadeaux: 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=600&q=80',
   Collections: 'https://images.unsplash.com/photo-1523779105320-d1cd346ff52b?w=600&q=80',
+  SS26: 'https://images.unsplash.com/photo-1523779105320-d1cd346ff52b?w=600&q=80',
+};
+
+const normalizedCategoryImages = Object.entries(categoryImages).reduce(
+  (acc, [key, value]) => {
+    acc[key.trim().toLowerCase()] = value;
+    return acc;
+  },
+  {}
+);
+
+export const getCategoryImage = (name = '') => {
+  const key = name.trim().toLowerCase();
+  return normalizedCategoryImages[key] || categoryImages['Femme'];
 };

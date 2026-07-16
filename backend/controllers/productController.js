@@ -4,12 +4,13 @@ const Product = require('../models/Product');
 // @desc    Get all products
 // @route   GET /api/products
 const getProducts = asyncHandler(async (req, res) => {
-  const { category, search, sort, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
+  const { category, search, sort, minPrice, maxPrice, isFeatured, page = 1, limit = 12 } = req.query;
 
   let query = {};
 
   if (category) query.category = category;
   if (search) query.name = { $regex: search, $options: 'i' };
+  if (isFeatured !== undefined) query.isFeatured = isFeatured === 'true';
   if (minPrice || maxPrice) {
     query.price = {};
     if (minPrice) query.price.$gte = Number(minPrice);

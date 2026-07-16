@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { categoryImages } from '../../utils/images';
+import { getCategoryImage } from '../../utils/images';
 
 const collections = [
   {
@@ -74,28 +74,31 @@ const CollectionsSection = () => {
                   transition={{ duration: 0.3 }}
                   className={`${col.bg} rounded-2xl p-8 aspect-square flex flex-col items-center justify-center text-center group cursor-pointer relative overflow-hidden`}
                 >
+                  {/* Image de fond */}
+                  <img
+                    src={getCategoryImage(col.name)}
+                    alt={col.name}
+                    className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                  />
+
+                  {/* Voile sombre pour la lisibilité du texte */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent rounded-2xl" />
+
                   {/* Hover border */}
                   <motion.div
                     initial={{ opacity: 0 }}
                     whileHover={{ opacity: 1 }}
-                    className="absolute inset-0 border-2 border-gs-gold rounded-2xl"
+                    className="absolute inset-0 border-2 border-gs-gold rounded-2xl z-10"
                   />
 
-                  {/* Emoji */}
-<img
-  src={categoryImages[col.name] || categoryImages['Femme']}
-  alt={col.name}
-  className="w-full h-full object-cover rounded-2xl"
-/>
-
                   {/* Text */}
-                  <h3 className="font-black text-gs-black text-xl tracking-widest mb-1">
+                  <h3 className="relative z-10 font-black text-white text-xl tracking-widest mb-1">
                     {col.name}
                   </h3>
-                  <p className="text-gs-gray text-xs font-light tracking-wide mb-2">
+                  <p className="relative z-10 text-white/70 text-xs font-light tracking-wide mb-2">
                     {col.subtitle}
                   </p>
-                  <p className="text-gs-gold text-xs tracking-widest uppercase font-light">
+                  <p className="relative z-10 text-gs-gold text-xs tracking-widest uppercase font-light">
                     {col.count}
                   </p>
                 </motion.div>

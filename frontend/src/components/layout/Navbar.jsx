@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiSearch, FiUser, FiShoppingBag, FiHeart, FiX, FiMenu } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
@@ -12,12 +12,35 @@ const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const menuButtonRef = useRef(null);
+  const drawerCloseRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Bloque le scroll de la page et permet de fermer le drawer mobile avec Echap.
+  // Rend aussi le focus au bouton "menu" quand on ferme, pour rester accessible au clavier.
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    drawerCloseRef.current?.focus();
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      menuButtonRef.current?.focus();
+    };
+  }, [menuOpen]);
 
   const navLinks = ['FEMME', 'HOMME', 'SACS', 'COLLECTIONS', 'NOUVEAUTÉS'];
 
@@ -36,10 +59,22 @@ const navigate = useNavigate();
 
           {/* LEFT */}
           <div className="flex items-center gap-6 w-1/3">
-            <button onClick={() => setMenuOpen(true)} className="hover:opacity-60 transition-opacity">
+            <button
+              ref={menuButtonRef}
+              onClick={() => setMenuOpen(true)}
+              className="hover:opacity-60 transition-opacity"
+              aria-label="Ouvrir le menu"
+              aria-haspopup="true"
+              aria-expanded={menuOpen}
+            >
               <FiMenu size={20} strokeWidth={1.5} />
             </button>
-            <button onClick={() => setSearchOpen(!searchOpen)} className="hover:opacity-60 transition-opacity hidden md:block">
+            <button
+              onClick={() => setSearchOpen(!searchOpen)}
+              className="hover:opacity-60 transition-opacity hidden md:block"
+              aria-label={searchOpen ? 'Fermer la recherche' : 'Ouvrir la recherche'}
+              aria-expanded={searchOpen}
+            >
               <FiSearch size={18} strokeWidth={1.5} />
             </button>
           </div>
@@ -84,10 +119,10 @@ const navigate = useNavigate();
     </span>
   </Link>
 )}
-            <Link to="/wishlist" className="hover:opacity-60 transition-opacity hidden md:block">
+            <Link to="/wishlist" className="hover:opacity-60 transition-opacity hidden md:block" aria-label="Ma liste de souhaits">
               <FiHeart size={18} strokeWidth={1.5} />
             </Link>
-<Link to="/cart" className="flex items-center gap-2 hover:opacity-60 transition-opacity relative">
+<Link to="/cart" className="flex items-center gap-2 hover:opacity-60 transition-opacity relative" aria-label={`Mon panier, ${cartCount} article${cartCount > 1 ? 's' : ''}`}>
   <FiShoppingBag size={18} strokeWidth={1.5} />
   {cartCount > 0 && (
     <span className="absolute -top-2 -right-2 bg-gs-black text-white text-[9px] font-medium w-4 h-4 rounded-full flex items-center justify-center">
@@ -129,7 +164,7 @@ const navigate = useNavigate();
                   placeholder="Rechercher un produit..."
                   className="flex-1 text-sm font-light tracking-wide outline-none bg-transparent placeholder:text-gs-gray"
                 />
-                <button onClick={() => setSearchOpen(false)}>
+                <button onClick={() => setSearchOpen(false)} aria-label="Fermer la recherche">
                   <FiX size={16} className="text-gs-gray hover:text-black transition-colors" />
                 </button>
               </div>
@@ -148,6 +183,7 @@ const navigate = useNavigate();
               exit={{ opacity: 0 }}
               onClick={() => setMenuOpen(false)}
               className="fixed inset-0 bg-black/40 z-50"
+              aria-hidden="true"
             />
             <motion.div
               initial={{ x: '-100%' }}
@@ -155,11 +191,14 @@ const navigate = useNavigate();
               exit={{ x: '-100%' }}
               transition={{ type: 'tween', duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="fixed top-0 left-0 h-full w-80 bg-white z-50 flex flex-col"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu de navigation"
             >
               {/* Header */}
               <div className="flex items-center justify-between px-8 py-6 border-b border-black/10">
                 <div className="font-display text-2xl font-light tracking-widest">GoShop</div>
-                <button onClick={() => setMenuOpen(false)}>
+                <button ref={drawerCloseRef} onClick={() => setMenuOpen(false)} aria-label="Fermer le menu">
                   <FiX size={22} strokeWidth={1.5} />
                 </button>
               </div>
@@ -188,8 +227,10 @@ const navigate = useNavigate();
 
               {/* Bottom */}
               <div className="px-8 py-6 border-t border-black/10 flex gap-6">
-                <Link to="/login" className="label-tag hover:text-gs-black transition-colors">Mon Compte</Link>
-                <Link to="/wishlist" className="label-tag hover:text-gs-black transition-colors">Wishlist</Link>
+                <Link to={user ? '/profile' : '/login'} onClick={() => setMenuOpen(false)} className="label-tag hover:text-gs-black transition-colors">
+                  {user ? 'Mon Compte' : 'Se Connecter'}
+                </Link>
+                <Link to="/wishlist" onClick={() => setMenuOpen(false)} className="label-tag hover:text-gs-black transition-colors">Wishlist</Link>
               </div>
             </motion.div>
           </>
@@ -200,12 +241,12 @@ const navigate = useNavigate();
       <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-black/10">
         <div className="grid grid-cols-4 py-3">
           {[
-            { icon: <FiSearch size={20} strokeWidth={1.5} />, to: '/search', label: 'Chercher' },
+            { icon: <FiSearch size={20} strokeWidth={1.5} />, to: '/shop', label: 'Chercher' },
             { icon: <FiHeart size={20} strokeWidth={1.5} />, to: '/wishlist', label: 'Wishlist' },
-            { icon: <FiUser size={20} strokeWidth={1.5} />, to: '/login', label: 'Compte' },
+            { icon: <FiUser size={20} strokeWidth={1.5} />, to: user ? '/profile' : '/login', label: user ? 'Profil' : 'Compte' },
             { icon: <FiShoppingBag size={20} strokeWidth={1.5} />, to: '/cart', label: 'Panier' },
           ].map((item, i) => (
-            <Link key={i} to={item.to} className="flex flex-col items-center gap-1 text-gs-black hover:text-gs-gold transition-colors py-1">
+            <Link key={i} to={item.to} className="flex flex-col items-center gap-1 text-gs-black hover:text-gs-gold transition-colors py-1" aria-label={item.label}>
               {item.icon}
               <span className="text-[9px] tracking-widest uppercase">{item.label}</span>
             </Link>

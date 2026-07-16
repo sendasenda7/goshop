@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FiHeart, FiShoppingBag, FiArrowLeft, FiStar, FiTruck, FiRefreshCw, FiShield } from 'react-icons/fi';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
@@ -8,6 +8,7 @@ import { getProductImage } from '../utils/images';
 import api from '../utils/api';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const mockProduct = {
@@ -52,6 +53,8 @@ const colorMap = {
 const ProductDetailPage = () => {
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { id } = useParams();
   const [product, setProduct] = useState(mockProduct);
   const [loading, setLoading] = useState(true);
@@ -104,8 +107,18 @@ const ProductDetailPage = () => {
       toast.error('Veuillez choisir une taille');
       return;
     }
-    await addToCart(product._id, quantity, selectedSize, selectedColor);
-    toast.success(`${product.name} ajoute au panier !`);
+    if (!user) {
+      toast.error('Connectez-vous pour ajouter un produit au panier');
+      navigate('/login');
+      return;
+    }
+    try {
+      await addToCart(product._id, quantity, selectedSize, selectedColor);
+      toast.success(`${product.name} ajouté au panier !`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Impossible d'ajouter ce produit au panier, réessayez.");
+    }
   };
 
   return (

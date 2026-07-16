@@ -28,12 +28,12 @@ export const CartProvider = ({ children }) => {
   };
 
   const addToCart = async (productId, quantity, size, color) => {
-    try {
-      const res = await api.post('/cart', { productId, quantity, size, color });
-      setCart(res.data.cart.items || []);
-    } catch (err) {
-      console.error(err);
-    }
+    // Ne catch plus l'erreur en silence : on la relance pour que l'appelant
+    // (ex: bouton "Ajouter au panier") sache que ça a échoué et n'affiche pas
+    // un toast de succès à tort.
+    const res = await api.post('/cart', { productId, quantity, size, color });
+    setCart(res.data.cart.items || []);
+    return res.data.cart;
   };
 
   const removeFromCart = async (itemId) => {

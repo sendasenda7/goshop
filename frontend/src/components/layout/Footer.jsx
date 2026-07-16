@@ -2,20 +2,32 @@ import { useState, useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { FiArrowRight } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 const Footer = () => {
   const [email, setEmail] = useState('');
   const ref = useRef(null);
   const inView = useInView(ref, { once: true });
+  const currentYear = new Date().getFullYear();
 
   const handleNewsletter = (e) => {
     e.preventDefault();
-    alert('Merci vous etes inscrit');
+    toast.success('Merci, vous êtes inscrit(e) à la newsletter !');
     setEmail('');
   };
 
-  const services = ['Mon Compte', 'Suivi Commande', 'Retours', 'SAV'];
-  const infos = ['Contact', 'FAQ', 'Mentions Legales', 'Confidentialite'];
+  const services = [
+    { label: 'Mon Compte', to: '/profile' },
+    { label: 'Suivi Commande', to: '/profile?tab=orders' },
+    { label: 'Retours', to: '/profile?tab=orders' },
+    { label: 'SAV', to: '/contact' },
+  ];
+  const infos = [
+    { label: 'Contact', to: '/contact' },
+    { label: 'FAQ', to: '/faq' },
+    { label: 'Mentions Legales', to: '/mentions-legales' },
+    { label: 'Confidentialite', to: '/confidentialite' },
+  ];
   const boutiques = ['Femme', 'Homme', 'Cadeaux', 'Collections'];
   const payments = ['VISA', 'MC', 'PayPal'];
 
@@ -58,9 +70,9 @@ const Footer = () => {
           <h4 className="text-xs tracking-widest uppercase font-semibold mb-6">Services</h4>
           <ul className="space-y-3">
             {services.map((item) => (
-              <li key={item}>
-                <Link to="/profile" className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
-                  {item}
+              <li key={item.label}>
+                <Link to={item.to} className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
+                  {item.label}
                 </Link>
               </li>
             ))}
@@ -75,9 +87,9 @@ const Footer = () => {
           <h4 className="text-xs tracking-widest uppercase font-semibold mb-6">Informations</h4>
           <ul className="space-y-3">
             {infos.map((item) => (
-              <li key={item}>
-                <Link to="/" className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
-                  {item}
+              <li key={item.label}>
+                <Link to={item.to} className="text-white/40 text-xs font-light hover:text-gs-gold transition-colors tracking-wide">
+                  {item.label}
                 </Link>
               </li>
             ))}
@@ -135,7 +147,7 @@ const Footer = () => {
           animate={inView ? { opacity: 1 } : {}}
           className="text-white/30 text-xs font-light"
         >
-          Copyright 2025 GoShop. Tous les droits sont reserves.
+          Copyright {currentYear} GoShop. Tous les droits sont reserves.
         </motion.p>
 
         <motion.div

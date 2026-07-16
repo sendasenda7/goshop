@@ -1,42 +1,48 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { FiArrowRight } from 'react-icons/fi';
 import { getProductImage } from '../../utils/images';
+import api from '../../utils/api';
 
-const drops = [
-  {
-    id: 1,
-    tag: 'LIMITED',
-    tagColor: 'text-cyan-400',
-    name: 'NEON NOIR',
-    desc: 'Sac en cuir grainé noir mat, finitions dorées',
-    price: '450 TND',
-    bg: 'from-gray-900 to-black',
-  },
-  {
-    id: 2,
-    tag: 'NEW ERA',
-    tagColor: 'text-pink-400',
-    name: 'MONOLITH',
-    desc: 'Pochette minimaliste en cuir lisse taupe',
-    price: '320 TND',
-    bg: 'from-gray-800 to-gray-900',
-  },
-  {
-    id: 3,
-    tag: 'BEST SELLER',
-    tagColor: 'text-gs-gold',
-    name: 'THE DOME',
-    desc: 'Vanity case iconique en cuir pebblé',
-    price: '380 TND',
-    bg: 'from-stone-800 to-stone-900',
-  },
+// Habillage marketing appliqué aux produits réels par position (décoratif uniquement,
+// ne remplace plus les vraies données produit comme avant).
+const decorations = [
+  { tag: 'LIMITED', tagColor: 'text-cyan-400', bg: 'from-gray-900 to-black' },
+  { tag: 'NEW ERA', tagColor: 'text-pink-400', bg: 'from-gray-800 to-gray-900' },
+  { tag: 'BEST SELLER', tagColor: 'text-gs-gold', bg: 'from-stone-800 to-stone-900' },
+];
+
+// Secours si l'API ne répond pas (ex: backend éteint pendant le dev front) —
+// avec des _id fictifs qui ne pointeront pas vers un vrai produit, à n'utiliser
+// qu'en dernier recours pour ne pas casser l'affichage.
+const fallbackDrops = [
+  { _id: null, name: 'NEON NOIR', description: 'Sac en cuir grainé noir mat, finitions dorées', price: 450 },
+  { _id: null, name: 'MONOLITH', description: 'Pochette minimaliste en cuir lisse taupe', price: 320 },
+  { _id: null, name: 'THE DOME', description: 'Vanity case iconique en cuir pebblé', price: 380 },
 ];
 
 const FeaturedDrops = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-100px' });
+  const [drops, setDrops] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const res = await api.get('/products', { params: { isFeatured: true, limit: 3 } });
+        const products = res.data.products || [];
+        setDrops(products.length > 0 ? products : fallbackDrops);
+      } catch (err) {
+        console.error(err);
+        setDrops(fallbackDrops);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFeatured();
+  }, []);
 
   return (
     <section ref={ref} className="py-24 px-6 md:px-12 bg-gs-white">
@@ -71,59 +77,72 @@ const FeaturedDrops = () => {
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {drops.map((drop, i) => (
-            <motion.div
-              key={drop.id}
-              initial={{ opacity: 0, y: 50 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: i * 0.15, duration: 0.7 }}
-            >
-              <Link to={`/product/${drop.id}`}>
-                <motion.div
-                  whileHover={{ y: -8, scale: 1.01 }}
-                  transition={{ duration: 0.4 }}
-                  className={`relative bg-gradient-to-br ${drop.bg} rounded-2xl overflow-hidden cursor-pointer group`}
-                >
-                  {/* Image placeholder */}
-                  <div className="aspect-[3/4] flex items-center justify-center p-8">
-<img
-  src={getProductImage(drop.name)}
-  alt={drop.name}
-  className="w-full h-full object-cover absolute inset-0 rounded-2xl"
-/>
+          {loading && (
+            <>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="aspect-[3/4] rounded-2xl bg-gs-beige animate-pulse" />
+              ))}
+            </>
+          )}
 
-                    {/* Glow effect */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          {!loading && drops.map((drop, i) => {
+            const deco = decorations[i % decorations.length];
+            const linkTo = drop._id ? `/product/${drop._id}` : '/shop';
 
-                    {/* Hover overlay */}
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      whileHover={{ opacity: 1 }}
-                      className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center"
-                    >
-                      <span className="border border-white/50 text-white text-xs tracking-widest uppercase px-6 py-3">
-                        Voir le Produit
-                      </span>
-                    </motion.div>
-                  </div>
+            return (
+              <motion.div
+                key={drop._id || drop.name}
+                initial={{ opacity: 0, y: 50 }}
+                animate={inView ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: i * 0.15, duration: 0.7 }}
+              >
+                <Link to={linkTo}>
+                  <motion.div
+                    whileHover={{ y: -8, scale: 1.01 }}
+                    transition={{ duration: 0.4 }}
+                    className={`relative bg-gradient-to-br ${deco.bg} rounded-2xl overflow-hidden cursor-pointer group`}
+                  >
+                    {/* Image placeholder */}
+                    <div className="aspect-[3/4] flex items-center justify-center p-8">
+                      <img
+                        src={getProductImage(drop.name)}
+                        alt={drop.name}
+                        className="w-full h-full object-cover absolute inset-0 rounded-2xl"
+                      />
 
-                  {/* Info */}
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <p className={`text-xs tracking-widest uppercase font-light mb-1 ${drop.tagColor}`}>
-                      {drop.tag}
-                    </p>
-                    <h3 className="text-white font-black text-2xl tracking-wider mb-1">
-                      {drop.name}
-                    </h3>
-                    <div className="flex items-center justify-between">
-                      <p className="text-white/50 text-xs font-light">{drop.desc}</p>
-                      <p className="text-white font-semibold text-sm">{drop.price}</p>
+                      {/* Glow effect */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                      {/* Hover overlay */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        whileHover={{ opacity: 1 }}
+                        className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center"
+                      >
+                        <span className="border border-white/50 text-white text-xs tracking-widest uppercase px-6 py-3">
+                          Voir le Produit
+                        </span>
+                      </motion.div>
                     </div>
-                  </div>
-                </motion.div>
-              </Link>
-            </motion.div>
-          ))}
+
+                    {/* Info */}
+                    <div className="absolute bottom-0 left-0 right-0 p-6">
+                      <p className={`text-xs tracking-widest uppercase font-light mb-1 ${deco.tagColor}`}>
+                        {deco.tag}
+                      </p>
+                      <h3 className="text-white font-black text-2xl tracking-wider mb-1">
+                        {drop.name}
+                      </h3>
+                      <div className="flex items-center justify-between">
+                        <p className="text-white/50 text-xs font-light truncate pr-2">{drop.description}</p>
+                        <p className="text-white font-semibold text-sm whitespace-nowrap">{drop.price} TND</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Mobile View All */}

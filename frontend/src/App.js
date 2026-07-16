@@ -10,6 +10,9 @@ import CheckoutPage from './pages/CheckoutPage';
 import AdminPage from './pages/AdminPage';
 import ProfilePage from './pages/ProfilePage';
 import WishlistPage from './pages/WishlistPage';
+import ContactPage from './pages/ContactPage';
+import FaqPage from './pages/FaqPage';
+import LegalPage from './pages/LegalPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -26,6 +29,10 @@ function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/wishlist" element={<WishlistPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/mentions-legales" element={<LegalPage />} />
+        <Route path="/confidentialite" element={<LegalPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Router>
