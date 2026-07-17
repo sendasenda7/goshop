@@ -9,7 +9,7 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
-import api from '../utils/api';
+import api, { SERVER_ORIGIN } from '../utils/api';
 import toast from 'react-hot-toast';
 
 const tabs = [
@@ -245,6 +245,10 @@ const ProfilePage = () => {
 
   // Sauvegarder le profil
   const handleSave = async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
+      toast.error('Adresse email invalide');
+      return;
+    }
     setSaving(true);
     try {
       const res = await api.put('/users/profile', {
@@ -270,7 +274,12 @@ const ProfilePage = () => {
     }
     setAddressSaving(true);
     try {
-      const updatedAddresses = [...addresses, newAddress];
+      // Si la nouvelle adresse est définie comme principale, on retire ce
+      // statut des autres pour ne jamais avoir 2 adresses "principales" à la fois.
+      const existingAddresses = newAddress.isDefault
+        ? addresses.map((a) => ({ ...a, isDefault: false }))
+        : addresses;
+      const updatedAddresses = [...existingAddresses, newAddress];
       const res = await api.put('/users/profile', { addresses: updatedAddresses });
       setAddresses(res.data.addresses || []);
       setNewAddress({ fullName: '', street: '', city: '', zipCode: '', country: 'Tunisie', isDefault: false });
@@ -292,6 +301,18 @@ const ProfilePage = () => {
       toast.success('Adresse supprimée');
     } catch (err) {
       toast.error('Erreur lors de la suppression');
+    }
+  };
+
+  // Définir une adresse existante comme principale
+  const handleSetDefaultAddress = async (index) => {
+    try {
+      const updatedAddresses = addresses.map((a, i) => ({ ...a, isDefault: i === index }));
+      const res = await api.put('/users/profile', { addresses: updatedAddresses });
+      setAddresses(res.data.addresses || []);
+      toast.success('Adresse principale mise à jour');
+    } catch (err) {
+      toast.error('Erreur lors de la mise à jour');
     }
   };
 
@@ -345,7 +366,7 @@ const ProfilePage = () => {
                   <div className="w-20 h-20 bg-gs-beige rounded-full flex items-center justify-center mx-auto mb-3 overflow-hidden">
                     {avatar ? (
                       <img
-                        src={`http://localhost:5000${avatar}`}
+                        src={`${SERVER_ORIGIN}${avatar}`}
                         alt="avatar"
                         className="w-full h-full object-cover"
                       />
@@ -728,12 +749,22 @@ const ProfilePage = () => {
                               <p className="text-sm font-medium">{address.fullName}</p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleDeleteAddress(i)}
-                            className="text-gs-gray hover:text-red-400 transition-colors text-xs tracking-widest uppercase"
-                          >
-                            Supprimer
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {!address.isDefault && (
+                              <button
+                                onClick={() => handleSetDefaultAddress(i)}
+                                className="text-gs-gray hover:text-gs-gold transition-colors text-xs tracking-widest uppercase"
+                              >
+                                Definir par defaut
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteAddress(i)}
+                              className="text-gs-gray hover:text-red-400 transition-colors text-xs tracking-widest uppercase"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm font-light text-gs-gray">{address.street}</p>
                         <p className="text-sm font-light text-gs-gray">

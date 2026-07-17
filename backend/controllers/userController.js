@@ -61,6 +61,12 @@ const updateUserProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('updateUserProfile error:', error);
+    // Doublon sur un champ unique (typiquement l'email déjà utilisé par un autre compte)
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'champ';
+      const label = field === 'email' ? 'Cet email est déjà utilisé par un autre compte' : `Cette valeur est déjà utilisée (${field})`;
+      return res.status(400).json({ message: label });
+    }
     res.status(500).json({ message: error.message || 'Erreur serveur' });
   }
 };
