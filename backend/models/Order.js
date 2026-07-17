@@ -13,6 +13,7 @@ const orderSchema = new mongoose.Schema({
     image: String
   }],
   totalPrice: { type: Number, required: true },
+  shippingCost: { type: Number, default: 0 },
   shippingAddress: { type: Object, required: true },
   paymentMethod: { type: String, required: true },
   

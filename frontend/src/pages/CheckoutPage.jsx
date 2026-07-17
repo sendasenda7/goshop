@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiArrowRight, FiCheck, FiCreditCard, FiMapPin, FiPackage, FiAlertCircle } from 'react-icons/fi';
 import Navbar from '../components/layout/Navbar';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
 const steps = ['Livraison', 'Paiement', 'Confirmation'];
@@ -36,8 +37,29 @@ const CheckoutPage = () => {
     cvv: '',
   });
 const { cart, total: subtotal, clearCart } = useCart();
+  const { user } = useAuth();
+  
   const shippingCost = subtotal >= 200 ? 0 : 15;
   const total = subtotal + shippingCost;
+
+  // "Photo" du panier au moment de la confirmation, pour que le résumé de
+  // droite continue d'afficher les bons articles/montants après clearCart()
+  // (sinon il retombe à 0 puisqu'il lit le panier en direct).
+  const [orderSummarySnapshot, setOrderSummarySnapshot] = useState(null);
+
+  // Pas de panier => rien à commander ; pas connecté => l'API refusera de
+  // toute façon. Dans les deux cas, mieux vaut rediriger tout de suite que
+  // de laisser remplir tout le formulaire pour rien.
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (step === 0 && cart.length === 0) {
+      navigate('/cart');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, cart.length]);
 
   const handleShippingSubmit = (e) => {
     e.preventDefault();
@@ -49,6 +71,27 @@ const { cart, total: subtotal, clearCart } = useCart();
 const handlePaymentSubmit = async (e) => {
   e.preventDefault();
   setError('');
+
+  if (payment.method === 'card') {
+    const cardNumberDigits = payment.cardNumber.replace(/\s/g, '');
+    if (!/^\d{16}$/.test(cardNumberDigits)) {
+      setError('Numero de carte invalide (16 chiffres attendus)');
+      return;
+    }
+    if (!payment.cardName.trim()) {
+      setError('Le nom sur la carte est requis');
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(payment.expiry)) {
+      setError('Date d\'expiration invalide (format MM/AA)');
+      return;
+    }
+    if (!/^\d{3,4}$/.test(payment.cvv)) {
+      setError('CVV invalide');
+      return;
+    }
+  }
+
   setLoading(true);
   try {
     const { data: order } = await api.post('/orders', {
@@ -68,6 +111,15 @@ const handlePaymentSubmit = async (e) => {
         console.error('Erreur lors de la confirmation du paiement', payErr);
       }
     }
+
+    // On fige les infos du panier AVANT de le vider, pour que le résumé
+    // affiché à l'étape "Confirmation" reste cohérent.
+    setOrderSummarySnapshot({
+      items: cart,
+      subtotal,
+      shippingCost,
+      total,
+    });
 
     setOrderNumber(order._id);
     setStep(2);
@@ -309,6 +361,8 @@ const handlePaymentSubmit = async (e) => {
                             onChange={(e) => setPayment({ ...payment, cardNumber: e.target.value })}
                             placeholder="1234 5678 9012 3456"
                             maxLength={19}
+                            required={payment.method === 'card'}
+                            inputMode="numeric"
                             className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light placeholder:text-gs-gray"
                           />
                         </div>
@@ -319,6 +373,7 @@ const handlePaymentSubmit = async (e) => {
                             value={payment.cardName}
                             onChange={(e) => setPayment({ ...payment, cardName: e.target.value })}
                             placeholder="VOTRE NOM"
+                            required={payment.method === 'card'}
                             className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light placeholder:text-gs-gray"
                           />
                         </div>
@@ -331,6 +386,8 @@ const handlePaymentSubmit = async (e) => {
                               onChange={(e) => setPayment({ ...payment, expiry: e.target.value })}
                               placeholder="MM/AA"
                               maxLength={5}
+                              required={payment.method === 'card'}
+                              inputMode="numeric"
                               className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light placeholder:text-gs-gray"
                             />
                           </div>
@@ -341,7 +398,9 @@ const handlePaymentSubmit = async (e) => {
                               value={payment.cvv}
                               onChange={(e) => setPayment({ ...payment, cvv: e.target.value })}
                               placeholder="123"
-                              maxLength={3}
+                              maxLength={4}
+                              required={payment.method === 'card'}
+                              inputMode="numeric"
                               className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light placeholder:text-gs-gray"
                             />
                           </div>
@@ -489,7 +548,7 @@ const handlePaymentSubmit = async (e) => {
               </h3>
 
               <div className="space-y-4 mb-5 pb-5 border-b border-black/8">
-          {cart.map((item) => (
+          {(orderSummarySnapshot?.items || cart).map((item) => (
   <div key={item._id} className="flex items-center gap-3">
     <div className="w-12 h-12 bg-gs-beige rounded-lg flex items-center justify-center flex-shrink-0">
       {item.product?.images?.[0] ? (
@@ -514,19 +573,19 @@ const handlePaymentSubmit = async (e) => {
               <div className="space-y-2 mb-4 pb-4 border-b border-black/8">
                 <div className="flex justify-between text-xs">
                   <span className="text-gs-gray font-light">Sous-total</span>
-                  <span>{subtotal} TND</span>
+                  <span>{orderSummarySnapshot?.subtotal ?? subtotal} TND</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gs-gray font-light">Livraison</span>
-                  <span className={shippingCost === 0 ? 'text-green-600' : ''}>
-                    {shippingCost === 0 ? 'Gratuite' : `${shippingCost} TND`}
+                  <span className={(orderSummarySnapshot?.shippingCost ?? shippingCost) === 0 ? 'text-green-600' : ''}>
+                    {(orderSummarySnapshot?.shippingCost ?? shippingCost) === 0 ? 'Gratuite' : `${orderSummarySnapshot?.shippingCost ?? shippingCost} TND`}
                   </span>
                 </div>
               </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-xs tracking-widest uppercase font-semibold">Total</span>
-                <span className="font-display text-2xl font-semibold">{total} TND</span>
+                <span className="font-display text-2xl font-semibold">{orderSummarySnapshot?.total ?? total} TND</span>
               </div>
             </div>
           </motion.div>

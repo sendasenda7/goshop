@@ -35,12 +35,19 @@ const createOrder = async (req, res) => {
       });
     }
 
+    // Frais de livraison calculés côté serveur (jamais faire confiance à une
+    // valeur envoyée par le client) : gratuit à partir de 200 TND de sous-total.
+    const FREE_SHIPPING_THRESHOLD = 200;
+    const SHIPPING_COST = 15;
+    const shippingCost = totalPrice >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
+
     const order = new Order({
       user: req.user._id,
       customerName: req.user.name,
       customerEmail: req.user.email,
       items: orderItems,
-      totalPrice,
+      totalPrice: totalPrice + shippingCost,
+      shippingCost,
       shippingAddress: req.body.shippingAddress,
       paymentMethod: req.body.paymentMethod,
       paymentStatus: 'pending',
