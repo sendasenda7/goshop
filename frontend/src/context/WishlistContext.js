@@ -28,40 +28,26 @@ export const WishlistProvider = ({ children }) => {
   };
 
   const addToWishlist = async (productId) => {
-    try {
-      const res = await api.post('/wishlist', { productId });
-      setWishlist(res.data.wishlist.items || []);
-    } catch (err) {
-      console.error(err);
-    }
+    // Ne catch plus l'erreur en silence, sinon les toasts de succès s'affichent
+    // même en cas d'échec (ex: utilisateur non connecté).
+    const res = await api.post('/wishlist', { productId });
+    setWishlist(res.data.wishlist.items || []);
   };
 
   const removeFromWishlist = async (productId) => {
-    try {
-      const res = await api.delete(`/wishlist/${productId}`);
-      setWishlist(res.data.wishlist.items || []);
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await api.delete(`/wishlist/${productId}`);
+    setWishlist(res.data.wishlist.items || []);
   };
 
   const moveAllToCart = async () => {
-    try {
-      const res = await api.post('/wishlist/move-to-cart');
-      setWishlist([]);
-      return res.data.cart;
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await api.post('/wishlist/move-to-cart');
+    setWishlist([]);
+    return res.data.cart;
   };
 
   const clearWishlist = async () => {
-    try {
-      await api.delete('/wishlist');
-      setWishlist([]);
-    } catch (err) {
-      console.error(err);
-    }
+    await api.delete('/wishlist');
+    setWishlist([]);
   };
 
   const isInWishlist = (productId) => {

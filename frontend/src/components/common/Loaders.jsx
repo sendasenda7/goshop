@@ -56,9 +56,15 @@ export const ProductCardSkeleton = () => {
 };
 
 // SHOP PAGE SKELETON
-export const ShopSkeleton = () => {
+export const ShopSkeleton = ({ viewMode = 'grid' }) => {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div
+      className={`grid gap-4 ${
+        viewMode === 'grid'
+          ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+          : 'grid-cols-1 md:grid-cols-2'
+      }`}
+    >
       {Array(8).fill(0).map((_, i) => (
         <ProductCardSkeleton key={i} />
       ))}

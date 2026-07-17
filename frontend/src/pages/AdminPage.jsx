@@ -154,7 +154,7 @@ const ProductModal = ({ product, onClose, onSave }) => {
             <label className="label-tag mb-2 block">Catégorie *</label>
             <select name="category" value={form.category} onChange={handleChange}
               className="w-full border border-black/20 px-4 py-3 text-sm outline-none focus:border-gs-black transition-colors font-light bg-white">
-              {['Femme', 'Homme', 'Cadeaux', 'Collections'].map((c) => <option key={c}>{c}</option>)}
+              {['Femme', 'Homme', 'Sacs', 'Collections', 'Nouveautés', 'Cadeaux'].map((c) => <option key={c}>{c}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">

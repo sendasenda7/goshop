@@ -105,7 +105,7 @@ const FeaturedDrops = () => {
                     {/* Image placeholder */}
                     <div className="aspect-[3/4] flex items-center justify-center p-8">
                       <img
-                        src={getProductImage(drop.name)}
+                        src={drop.images?.[0] || getProductImage(drop.name)}
                         alt={drop.name}
                         className="w-full h-full object-cover absolute inset-0 rounded-2xl"
                       />

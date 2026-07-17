@@ -30,11 +30,23 @@ const ShopPage = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [search, setSearch] = useState('');
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [priceRange, setPriceRange] = useState([0, 1000]);
 
   // Lire la catégorie depuis l'URL (?cat=femme)
   const catParam = searchParams.get('cat') || '';
   const activeCategory = catParamToLabel[catParam.toLowerCase()] || 'Tous';
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Debounce de la recherche : on attend que l'utilisateur arrête de taper
+  // (300ms) avant de lancer l'appel API, pour ne pas spammer le backend
+  // à chaque caractère.
+  const [searchInput, setSearchInput] = useState('');
+  useEffect(() => {
+    const timeout = setTimeout(() => { setSearch(searchInput); setCurrentPage(1); }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
 
   // Changer catégorie → met à jour l'URL
   const handleCategoryChange = (cat) => {
@@ -44,6 +56,7 @@ const ShopPage = () => {
       searchParams.set('cat', cat.toLowerCase());
     }
     setSearchParams(searchParams);
+    setCurrentPage(1);
   };
 
 useEffect(() => {
@@ -53,23 +66,30 @@ useEffect(() => {
       const params = new URLSearchParams();
       if (activeCategory !== 'Tous') params.append('category', activeCategory);
       if (search) params.append('search', search);
+      if (activeSort === 'Nouveautes') params.append('sort', 'newest');
       if (activeSort === 'Prix croissant') params.append('sort', 'price-asc');
       if (activeSort === 'Prix decroissant') params.append('sort', 'price-desc');
-      if (activeSort === 'Meilleures ventes') params.append('sort', 'rating');
+      if (activeSort === 'Meilleures ventes') params.append('sort', 'sold');
       params.append('minPrice', priceRange[0]);
       params.append('maxPrice', priceRange[1]);
+      params.append('page', currentPage);
+      params.append('limit', 12);
 
       const res = await api.get(`/products?${params}`);
       setProducts(res.data.products || []);
+      setTotalPages(res.data.pages || 1);
+      setTotalCount(res.data.total || 0);
     } catch (err) {
       console.error(err);
       setProducts([]);
+      setTotalPages(1);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   };
   fetchProducts();
-}, [activeCategory, activeSort, search, priceRange]);
+}, [activeCategory, activeSort, search, priceRange, currentPage]);
 
   return (
     <div className="min-h-screen bg-gs-white">
@@ -123,8 +143,8 @@ useEffect(() => {
               <input
                 type="text"
                 placeholder="Rechercher..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="text-xs outline-none bg-transparent w-32 placeholder:text-gs-gray"
               />
             </div>
@@ -165,7 +185,7 @@ useEffect(() => {
             <span className="text-xs text-gs-gray">Trier par:</span>
             <select
               value={activeSort}
-              onChange={(e) => setActiveSort(e.target.value)}
+              onChange={(e) => { setActiveSort(e.target.value); setCurrentPage(1); }}
               className="text-xs border border-black/20 px-3 py-2 outline-none bg-transparent cursor-pointer hover:border-gs-black transition-colors"
             >
               {sortOptions.map((opt) => (
@@ -178,7 +198,7 @@ useEffect(() => {
         {/* PRODUCTS GRID */}
 <AnimatePresence mode="wait">
   {loading ? (
-    <ShopSkeleton />
+    <ShopSkeleton viewMode={viewMode} />
   ) : products.length === 0 ? (
     <motion.div
       initial={{ opacity: 0 }}
@@ -187,25 +207,66 @@ useEffect(() => {
       className="text-center py-24"
     >
       <p className="font-display text-3xl font-light italic text-gs-gray mb-4">Aucun produit trouve</p>
-      <button onClick={() => { handleCategoryChange('Tous'); setSearch(''); }} className="btn-outline-black">
+      <button onClick={() => { handleCategoryChange('Tous'); setSearch(''); setSearchInput(''); }} className="btn-outline-black">
         Reinitialiser
       </button>
     </motion.div>
   ) : (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className={`grid gap-4 ${
-        viewMode === 'grid'
-          ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-          : 'grid-cols-1 md:grid-cols-2'
-      }`}
-    >
-              {products.map((product, i) => (
-                <ProductCard key={product._id} product={product} index={i} />
-              ))}
-            </motion.div>
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className={`grid gap-4 ${
+          viewMode === 'grid'
+            ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+            : 'grid-cols-1 md:grid-cols-2'
+        }`}
+      >
+                {products.map((product, i) => (
+                  <ProductCard key={product._id} product={product} index={i} />
+                ))}
+              </motion.div>
+
+              {/* PAGINATION */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-16">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 text-xs tracking-widest uppercase border border-black/15 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gs-gold transition-colors"
+                  >
+                    Précédent
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setCurrentPage(p)}
+                      className={`w-9 h-9 text-xs transition-colors ${
+                        p === currentPage
+                          ? 'bg-gs-black text-white'
+                          : 'text-gs-gray hover:text-gs-black border border-black/10'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 text-xs tracking-widest uppercase border border-black/15 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gs-gold transition-colors"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              )}
+
+              <p className="text-center text-xs text-gs-gray mt-4 tracking-wide">
+                {totalCount} produit{totalCount > 1 ? 's' : ''} au total
+              </p>
+            </>
           )}
         </AnimatePresence>
       </div>
@@ -244,7 +305,7 @@ useEffect(() => {
                     min="0"
                     max="1000"
                     value={priceRange[1]}
-                    onChange={(e) => setPriceRange([0, Number(e.target.value)])}
+                    onChange={(e) => { setPriceRange([0, Number(e.target.value)]); setCurrentPage(1); }}
                     className="w-full accent-gs-black"
                   />
                   <div className="flex justify-between text-xs text-gs-gray">

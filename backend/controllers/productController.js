@@ -22,6 +22,7 @@ const getProducts = asyncHandler(async (req, res) => {
   else if (sort === 'price-desc') sortOption = { price: -1 };
   else if (sort === 'newest') sortOption = { createdAt: -1 };
   else if (sort === 'rating') sortOption = { rating: -1 };
+  else if (sort === 'sold') sortOption = { sold: -1, rating: -1 };
 
   const total = await Product.countDocuments(query);
   const products = await Product.find(query)

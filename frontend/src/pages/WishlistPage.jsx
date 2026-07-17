@@ -34,8 +34,21 @@ const WishlistPage = () => {
     try {
       await moveAllToCart();
       await fetchCart();
+      toast.success('Tous les articles ont été déplacés vers le panier');
     } catch (err) {
       console.error(err);
+      toast.error("Impossible de déplacer les articles vers le panier");
+    }
+  };
+
+  const handleClearWishlist = async () => {
+    if (!window.confirm('Vider toute la wishlist ? Cette action est irréversible.')) return;
+    try {
+      await clearWishlist();
+      toast.success('Wishlist vidée');
+    } catch (err) {
+      console.error(err);
+      toast.error('Impossible de vider la wishlist');
     }
   };
 
@@ -66,7 +79,7 @@ const WishlistPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               whileHover={{ scale: 1.02 }}
-              onClick={clearWishlist}
+              onClick={handleClearWishlist}
               className="flex items-center gap-2 text-xs tracking-widest uppercase text-gs-gray hover:text-red-500 transition-colors border border-black/15 hover:border-red-200 px-4 py-2"
             >
               <FiTrash2 size={12} />

@@ -184,6 +184,7 @@ const updateOrderStatus = async (req, res) => {
     }
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Commande non trouvée' });
+    const wasAlreadyDelivered = order.orderStatus === 'delivered';
     order.orderStatus = orderStatus;
     if (orderStatus === 'delivered') {
       order.deliveredAt = Date.now();
@@ -192,7 +193,22 @@ const updateOrderStatus = async (req, res) => {
         order.paymentStatus = 'paid';
         order.paidAt = Date.now();
       }
+      // On compte la vente comme "réelle" uniquement à la livraison confirmée,
+      // et seulement la 1ère fois (pour ne pas compter 2x si le statut est
+      // renvoyé à "delivered" plusieurs fois par erreur).
+      if (!wasAlreadyDelivered) {
+        for (const item of order.items) {
+          await Product.findByIdAndUpdate(item.product, { $inc: { sold: item.quantity } });
+        }
+      }
     } else if (orderStatus === 'cancelled') {
+      // Si la commande avait déjà été comptée comme livrée/vendue, on retire
+      // ces ventes du compteur puisqu'elle est finalement annulée.
+      if (wasAlreadyDelivered) {
+        for (const item of order.items) {
+          await Product.findByIdAndUpdate(item.product, { $inc: { sold: -item.quantity } });
+        }
+      }
       // Une commande annulée ne doit jamais rester affichée/comptée comme "payée"
       if (order.paymentStatus === 'paid') {
         order.paymentStatus = 'refunded'; // argent déjà encaissé -> à rembourser
