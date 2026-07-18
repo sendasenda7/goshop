@@ -1,6 +1,8 @@
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
+const Coupon = require('../models/Coupon');
+const { checkCouponValidity, computeDiscount } = require('./couponController');
 
 // @desc    Créer une commande
 // @route   POST /api/orders
@@ -41,13 +43,30 @@ const createOrder = async (req, res) => {
     const SHIPPING_COST = 15;
     const shippingCost = totalPrice >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
 
+    // Coupon : re-validé entièrement côté serveur, on ne fait jamais confiance
+    // à un pourcentage/montant de réduction envoyé par le client.
+    let discountAmount = 0;
+    let appliedCouponCode = null;
+    let couponDoc = null;
+    if (req.body.couponCode) {
+      const result = await checkCouponValidity(req.body.couponCode, totalPrice);
+      if (!result.valid) {
+        return res.status(400).json({ message: result.message });
+      }
+      couponDoc = result.coupon;
+      discountAmount = computeDiscount(result.coupon, totalPrice);
+      appliedCouponCode = result.coupon.code;
+    }
+
     const order = new Order({
       user: req.user._id,
       customerName: req.user.name,
       customerEmail: req.user.email,
       items: orderItems,
-      totalPrice: totalPrice + shippingCost,
+      totalPrice: totalPrice + shippingCost - discountAmount,
       shippingCost,
+      couponCode: appliedCouponCode,
+      discountAmount,
       shippingAddress: req.body.shippingAddress,
       paymentMethod: req.body.paymentMethod,
       paymentStatus: 'pending',
@@ -58,6 +77,10 @@ const createOrder = async (req, res) => {
       await Product.findByIdAndUpdate(item.product._id, {
         $inc: { stock: -item.quantity },
       });
+    }
+
+    if (couponDoc) {
+      await Coupon.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: 1 } });
     }
 
     await order.save();

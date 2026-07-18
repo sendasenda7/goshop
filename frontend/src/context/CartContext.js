@@ -7,11 +7,19 @@ const CartContext = createContext();
 export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
   const [cartCount, setCartCount] = useState(0);
+  // Coupon centralisé ici (plutôt que dans CartPage) pour qu'il reste
+  // appliqué quand on passe du Panier au Checkout.
+  const [couponCode, setCouponCode] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) fetchCart();
-    else setCart([]);
+    else {
+      setCart([]);
+      setCouponCode(null);
+      setDiscountAmount(0);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -37,36 +45,55 @@ export const CartProvider = ({ children }) => {
   };
 
   const removeFromCart = async (itemId) => {
-    try {
-      const res = await api.delete(`/cart/${itemId}`);
-      setCart(res.data.cart.items || []);
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await api.delete(`/cart/${itemId}`);
+    setCart(res.data.cart.items || []);
   };
 
   const updateQuantity = async (itemId, quantity) => {
-    try {
-      const res = await api.put(`/cart/${itemId}`, { quantity });
-      setCart(res.data.cart.items || []);
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await api.put(`/cart/${itemId}`, { quantity });
+    setCart(res.data.cart.items || []);
   };
 
   const clearCart = async () => {
-    try {
-      await api.delete('/cart');
-      setCart([]);
-    } catch (err) {
-      console.error(err);
-    }
+    await api.delete('/cart');
+    setCart([]);
+    setCouponCode(null);
+    setDiscountAmount(0);
   };
 
   const total = cart.reduce((acc, item) => acc + (item.product?.price || 0) * item.quantity, 0);
 
+  // Valide le coupon côté serveur (jamais de calcul de réduction en local) et
+  // le garde en mémoire pour qu'il suive jusqu'au Checkout.
+  const applyCoupon = async (code) => {
+    const res = await api.post('/coupons/validate', { code, subtotal: total });
+    setCouponCode(res.data.code);
+    setDiscountAmount(res.data.discountAmount);
+    return res.data;
+  };
+
+  const removeCoupon = () => {
+    setCouponCode(null);
+    setDiscountAmount(0);
+  };
+
   return (
-    <CartContext.Provider value={{ cart, cartCount, total, addToCart, removeFromCart, updateQuantity, clearCart, fetchCart }}>
+    <CartContext.Provider
+      value={{
+        cart,
+        cartCount,
+        total,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        clearCart,
+        fetchCart,
+        couponCode,
+        discountAmount,
+        applyCoupon,
+        removeCoupon,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

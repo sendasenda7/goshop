@@ -36,11 +36,10 @@ const CheckoutPage = () => {
     expiry: '',
     cvv: '',
   });
-const { cart, total: subtotal, clearCart } = useCart();
+const { cart, total: subtotal, clearCart, couponCode, discountAmount } = useCart();
   const { user } = useAuth();
-  
   const shippingCost = subtotal >= 200 ? 0 : 15;
-  const total = subtotal + shippingCost;
+  const total = subtotal - discountAmount + shippingCost;
 
   // "Photo" du panier au moment de la confirmation, pour que le résumé de
   // droite continue d'afficher les bons articles/montants après clearCart()
@@ -97,6 +96,7 @@ const handlePaymentSubmit = async (e) => {
     const { data: order } = await api.post('/orders', {
       shippingAddress: shipping,
       paymentMethod: payment.method,
+      couponCode: couponCode || undefined,
     });
 
     if (payment.method !== 'cash') {
@@ -118,6 +118,8 @@ const handlePaymentSubmit = async (e) => {
       items: cart,
       subtotal,
       shippingCost,
+      discountAmount,
+      couponCode,
       total,
     });
 
@@ -575,6 +577,14 @@ const handlePaymentSubmit = async (e) => {
                   <span className="text-gs-gray font-light">Sous-total</span>
                   <span>{orderSummarySnapshot?.subtotal ?? subtotal} TND</span>
                 </div>
+                {(orderSummarySnapshot?.discountAmount ?? discountAmount) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-green-600 font-light">
+                      Reduction {orderSummarySnapshot?.couponCode ? `(${orderSummarySnapshot.couponCode})` : couponCode ? `(${couponCode})` : ''}
+                    </span>
+                    <span className="text-green-600">-{orderSummarySnapshot?.discountAmount ?? discountAmount} TND</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-xs">
                   <span className="text-gs-gray font-light">Livraison</span>
                   <span className={(orderSummarySnapshot?.shippingCost ?? shippingCost) === 0 ? 'text-green-600' : ''}>

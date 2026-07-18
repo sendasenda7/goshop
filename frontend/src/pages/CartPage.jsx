@@ -1,38 +1,63 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiTrash2, FiArrowLeft, FiArrowRight, FiShoppingBag, FiTag } from 'react-icons/fi';
+import { FiTrash2, FiArrowLeft, FiArrowRight, FiShoppingBag, FiTag, FiX } from 'react-icons/fi';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { useCart } from '../context/CartContext';
+import toast from 'react-hot-toast';
 
 const CartPage = () => {
-  const { cart, total, removeFromCart, updateQuantity } = useCart();
+  const {
+    cart,
+    total,
+    removeFromCart,
+    updateQuantity,
+    couponCode,
+    discountAmount,
+    applyCoupon,
+    removeCoupon,
+  } = useCart();
   const items = cart;
-  const [coupon, setCoupon] = useState('');
-  const [couponApplied, setCouponApplied] = useState(false);
-  const [couponError, setCouponError] = useState('');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
   const navigate = useNavigate();
 
-  const removeItem = (id) => removeFromCart(id);
-
-  const handleUpdateQuantity = (id, qty) => {
-    if (qty < 1) return;
-    updateQuantity(id, qty);
+  const removeItem = async (id) => {
+    try {
+      await removeFromCart(id);
+    } catch (err) {
+      console.error(err);
+      toast.error("Impossible de retirer cet article");
+    }
   };
 
-  const applyCoupon = () => {
-    if (coupon.toUpperCase() === 'GOSHOP10') {
-      setCouponApplied(true);
-      setCouponError('');
-    } else {
-      setCouponError('Code invalide');
-      setCouponApplied(false);
+  const handleUpdateQuantity = async (id, qty) => {
+    if (qty < 1) return;
+    try {
+      await updateQuantity(id, qty);
+    } catch (err) {
+      const message = err.response?.data?.message || 'Impossible de mettre à jour la quantité';
+      toast.error(message);
+    }
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) return;
+    setCouponLoading(true);
+    try {
+      await applyCoupon(couponInput.trim());
+      toast.success('Code promo applique !');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Code promo invalide';
+      toast.error(message);
+    } finally {
+      setCouponLoading(false);
     }
   };
 
   const subtotal = total;
-  const discount = couponApplied ? Math.round(subtotal * 0.1) : 0;
+  const discount = discountAmount;
   const shipping = subtotal >= 200 ? 0 : 15;
   const orderTotal = subtotal - discount + shipping;
 
@@ -122,24 +147,44 @@ const CartPage = () => {
                 <h2 className="text-sm tracking-widest uppercase font-semibold mb-6">Recapitulatif</h2>
                 <div className="mb-6">
                   <label className="label-tag mb-2 block">Code promo</label>
-                  <div className="flex gap-2">
-                    <div className="flex items-center flex-1 border border-black/20 focus-within:border-gs-black transition-colors">
-                      <FiTag size={12} className="ml-3 text-gs-gray" />
-                      <input type="text" value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="GOSHOP10" className="flex-1 px-2 py-2.5 text-xs outline-none bg-transparent placeholder:text-gs-gray font-light" />
+                  {couponCode ? (
+                    <div className="flex items-center justify-between border border-green-200 bg-green-50 px-3 py-2.5 rounded">
+                      <span className="text-xs text-green-700 font-medium tracking-wide">{couponCode} applique</span>
+                      <button onClick={removeCoupon} aria-label="Retirer le code promo">
+                        <FiX size={14} className="text-green-700 hover:text-red-500 transition-colors" />
+                      </button>
                     </div>
-                    <button onClick={applyCoupon} className="bg-gs-black text-white text-xs tracking-widest uppercase px-4 hover:bg-gs-gold transition-colors">OK</button>
-                  </div>
-                  {couponApplied && <p className="text-green-600 text-xs font-light mt-1">Code applique ! -10%</p>}
-                  {couponError && <p className="text-red-500 text-xs font-light mt-1">{couponError}</p>}
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex items-center flex-1 border border-black/20 focus-within:border-gs-black transition-colors">
+                        <FiTag size={12} className="ml-3 text-gs-gray" />
+                        <input
+                          type="text"
+                          value={couponInput}
+                          onChange={(e) => setCouponInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                          placeholder="Code promo"
+                          className="flex-1 px-2 py-2.5 text-xs outline-none bg-transparent placeholder:text-gs-gray font-light"
+                        />
+                      </div>
+                      <button
+                        onClick={handleApplyCoupon}
+                        disabled={couponLoading}
+                        className="bg-gs-black text-white text-xs tracking-widest uppercase px-4 hover:bg-gs-gold transition-colors disabled:opacity-50"
+                      >
+                        {couponLoading ? '...' : 'OK'}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-3 mb-6 pb-6 border-b border-black/8">
                   <div className="flex justify-between text-sm">
                     <span className="text-gs-gray font-light">Sous-total</span>
                     <span className="font-medium">{subtotal} TND</span>
                   </div>
-                  {couponApplied && (
+                  {discount > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-green-600 font-light">Reduction (-10%)</span>
+                      <span className="text-green-600 font-light">Reduction</span>
                       <span className="text-green-600 font-medium">-{discount} TND</span>
                     </div>
                   )}

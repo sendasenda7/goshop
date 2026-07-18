@@ -10,7 +10,7 @@ import {
   FiTrendingUp, FiPlus, FiEdit2, FiTrash2,
   FiEye, FiMenu, FiX, FiLogOut, FiSettings,
   FiArrowUp, FiArrowDown, FiAlertCircle, FiRefreshCw,
-  FiMail, FiPhone, FiCalendar
+  FiMail, FiPhone, FiCalendar, FiTag
 } from 'react-icons/fi';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,7 @@ const navItems = [
   { id: 'products', label: 'Produits', icon: <FiShoppingBag size={18} /> },
   { id: 'orders', label: 'Commandes', icon: <FiPackage size={18} /> },
   { id: 'customers', label: 'Clients', icon: <FiUsers size={18} /> },
+  { id: 'coupons', label: 'Coupons', icon: <FiTag size={18} /> },
   { id: 'settings', label: 'Parametres', icon: <FiSettings size={18} /> },
 ];
 
@@ -344,6 +345,15 @@ const [dashboardData, setDashboardData] = useState({
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState(null);
 
+  const [coupons, setCoupons] = useState([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponsError, setCouponsError] = useState(null);
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [couponForm, setCouponForm] = useState({
+    code: '', discountType: 'percentage', discountValue: '', minOrderAmount: '', usageLimit: '', expiresAt: '',
+  });
+  const [couponSaving, setCouponSaving] = useState(false);
+
   // Gestion erreur 401 (session expirée)
   const handleApiError = (err) => {
     if (err.response?.status === 401) {
@@ -424,13 +434,75 @@ setDashboardData({
     }
   }, []);
 
+  const fetchCoupons = useCallback(async () => {
+    setCouponsLoading(true);
+    setCouponsError(null);
+    try {
+      const res = await api.get('/admin/coupons');
+      setCoupons(res.data?.coupons ?? []);
+    } catch (err) {
+      setCouponsError('Impossible de charger les coupons');
+      handleApiError(err);
+    } finally {
+      setCouponsLoading(false);
+    }
+  }, []);
+
+  const handleCreateCoupon = async (e) => {
+    e.preventDefault();
+    if (!couponForm.code.trim() || !couponForm.discountValue) {
+      toast.error('Code et valeur de réduction requis');
+      return;
+    }
+    setCouponSaving(true);
+    try {
+      await api.post('/admin/coupons', {
+        code: couponForm.code,
+        discountType: couponForm.discountType,
+        discountValue: Number(couponForm.discountValue),
+        minOrderAmount: couponForm.minOrderAmount ? Number(couponForm.minOrderAmount) : 0,
+        usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null,
+        expiresAt: couponForm.expiresAt || null,
+      });
+      toast.success('Coupon créé');
+      setShowCouponModal(false);
+      setCouponForm({ code: '', discountType: 'percentage', discountValue: '', minOrderAmount: '', usageLimit: '', expiresAt: '' });
+      fetchCoupons();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la création du coupon');
+    } finally {
+      setCouponSaving(false);
+    }
+  };
+
+  const handleToggleCoupon = async (coupon) => {
+    try {
+      await api.put(`/admin/coupons/${coupon._id}`, { isActive: !coupon.isActive });
+      setCoupons((prev) => prev.map((c) => (c._id === coupon._id ? { ...c, isActive: !c.isActive } : c)));
+    } catch (err) {
+      toast.error("Erreur lors de la mise à jour du coupon");
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId) => {
+    if (!window.confirm('Supprimer ce coupon ? Cette action est irréversible.')) return;
+    try {
+      await api.delete(`/admin/coupons/${couponId}`);
+      setCoupons((prev) => prev.filter((c) => c._id !== couponId));
+      toast.success('Coupon supprimé');
+    } catch (err) {
+      toast.error('Erreur lors de la suppression du coupon');
+    }
+  };
+
   // Chargement initial
   useEffect(() => {
     fetchDashboardStats();
     fetchProducts();
     fetchOrders();
     fetchCustomers();
-  }, [fetchDashboardStats, fetchProducts, fetchOrders, fetchCustomers]);
+    fetchCoupons();
+  }, [fetchDashboardStats, fetchProducts, fetchOrders, fetchCustomers, fetchCoupons]);
 
   // Suppression produit
   const handleDelete = async () => {
@@ -952,6 +1024,137 @@ const handleOrderUpdate = (updatedOrder) => {
                     </div>
                   </div>
                 )}
+              </motion.div>
+            )}
+
+            {/* Coupons (admin) */}
+            {activeSection === 'coupons' && (
+              <motion.div key="coupons" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-display text-3xl font-light italic">
+                    Codes <span className="font-semibold">Promo</span>
+                    {!couponsLoading && <span className="text-base font-sans font-light text-gs-gray ml-3">({coupons.length})</span>}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <button onClick={fetchCoupons} className="flex items-center gap-2 text-xs text-gs-gray hover:text-gs-black transition-colors border border-black/15 px-3 py-2 rounded-lg">
+                      <FiRefreshCw size={13} /> Actualiser
+                    </button>
+                    <button onClick={() => setShowCouponModal(true)} className="flex items-center gap-2 text-xs bg-gs-black text-white px-4 py-2 rounded-lg hover:bg-gs-gold hover:text-gs-black transition-colors">
+                      <FiPlus size={13} /> Nouveau coupon
+                    </button>
+                  </div>
+                </div>
+
+                {couponsLoading && <div className="bg-white rounded-2xl border border-black/5 p-12 text-center"><p className="text-xs text-gs-gray font-light">Chargement des coupons...</p></div>}
+                {couponsError && (
+                  <div className="bg-red-50 rounded-2xl p-6 text-center">
+                    <p className="text-xs text-red-500">{couponsError}</p>
+                    <button onClick={fetchCoupons} className="mt-3 text-xs underline text-red-500">Réessayer</button>
+                  </div>
+                )}
+                {!couponsLoading && !couponsError && (
+                  <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gs-light">
+                          <tr>
+                            {['Code', 'Reduction', 'Min. commande', 'Utilisations', 'Expiration', 'Statut', ''].map((h) => (
+                              <th key={h} className="text-left label-tag px-6 py-4">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coupons.map((c, i) => (
+                            <motion.tr key={c._id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.05 }} className="border-t border-black/5 hover:bg-gs-light/30 transition-colors">
+                              <td className="px-6 py-4 text-sm font-semibold tracking-wide">{c.code}</td>
+                              <td className="px-6 py-4 text-xs text-gs-gray font-light">
+                                {c.discountType === 'percentage' ? `${c.discountValue}%` : `${c.discountValue} TND`}
+                              </td>
+                              <td className="px-6 py-4 text-xs text-gs-gray font-light">{c.minOrderAmount > 0 ? `${c.minOrderAmount} TND` : '—'}</td>
+                              <td className="px-6 py-4 text-xs text-gs-gray font-light">{c.usedCount}{c.usageLimit ? ` / ${c.usageLimit}` : ''}</td>
+                              <td className="px-6 py-4 text-xs text-gs-gray font-light">{c.expiresAt ? formatDate(c.expiresAt) : '—'}</td>
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleToggleCoupon(c)}
+                                  className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                                    c.isActive ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-gray-100 text-gs-gray hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {c.isActive ? 'Actif' : 'Inactif'}
+                                </button>
+                              </td>
+                              <td className="px-6 py-4">
+                                <button onClick={() => handleDeleteCoupon(c._id)} className="text-gs-gray hover:text-red-500 transition-colors" aria-label="Supprimer le coupon">
+                                  <FiTrash2 size={14} />
+                                </button>
+                              </td>
+                            </motion.tr>
+                          ))}
+                          {coupons.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-xs text-gs-gray font-light">Aucun coupon cree</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal creation coupon */}
+                <AnimatePresence>
+                  {showCouponModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={() => setShowCouponModal(false)}>
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                        onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl p-8 w-full max-w-md">
+                        <h3 className="font-display text-2xl font-light italic mb-6">Nouveau <span className="font-semibold">Coupon</span></h3>
+                        <form onSubmit={handleCreateCoupon} className="space-y-4">
+                          <div>
+                            <label className="label-tag mb-2 block">Code</label>
+                            <input type="text" value={couponForm.code} onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                              placeholder="GOSHOP10" className="w-full border border-black/20 px-4 py-2.5 text-sm outline-none focus:border-gs-black transition-colors" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="label-tag mb-2 block">Type</label>
+                              <select value={couponForm.discountType} onChange={(e) => setCouponForm({ ...couponForm, discountType: e.target.value })}
+                                className="w-full border border-black/20 px-4 py-2.5 text-sm outline-none focus:border-gs-black transition-colors bg-white">
+                                <option value="percentage">Pourcentage (%)</option>
+                                <option value="fixed">Montant fixe (TND)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="label-tag mb-2 block">Valeur</label>
+                              <input type="number" value={couponForm.discountValue} onChange={(e) => setCouponForm({ ...couponForm, discountValue: e.target.value })}
+                                placeholder={couponForm.discountType === 'percentage' ? '10' : '20'} className="w-full border border-black/20 px-4 py-2.5 text-sm outline-none focus:border-gs-black transition-colors" />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="label-tag mb-2 block">Commande min. (optionnel)</label>
+                              <input type="number" value={couponForm.minOrderAmount} onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: e.target.value })}
+                                placeholder="0" className="w-full border border-black/20 px-4 py-2.5 text-sm outline-none focus:border-gs-black transition-colors" />
+                            </div>
+                            <div>
+                              <label className="label-tag mb-2 block">Limite d'usage (optionnel)</label>
+                              <input type="number" value={couponForm.usageLimit} onChange={(e) => setCouponForm({ ...couponForm, usageLimit: e.target.value })}
+                                placeholder="Illimite" className="w-full border border-black/20 px-4 py-2.5 text-sm outline-none focus:border-gs-black transition-colors" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="label-tag mb-2 block">Date d'expiration (optionnel)</label>
+                            <input type="date" value={couponForm.expiresAt} onChange={(e) => setCouponForm({ ...couponForm, expiresAt: e.target.value })}
+                              className="w-full border border-black/20 px-4 py-2.5 text-sm outline-none focus:border-gs-black transition-colors" />
+                          </div>
+                          <div className="flex gap-3 pt-2">
+                            <button type="button" onClick={() => setShowCouponModal(false)} className="flex-1 btn-outline-black">Annuler</button>
+                            <button type="submit" disabled={couponSaving} className="flex-1 bg-gs-black text-white text-xs tracking-widest uppercase py-3 hover:bg-gs-gold hover:text-gs-black transition-colors disabled:opacity-50">
+                              {couponSaving ? 'Creation...' : 'Creer'}
+                            </button>
+                          </div>
+                        </form>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
 

@@ -14,6 +14,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const wishlistRoutes = require('./routes/wishlist');
+const couponRoutes = require('./routes/couponRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const path = require('path');
@@ -60,6 +61,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/coupons', couponRoutes);
 
 app.get('/', (req, res) => res.send('API GoShop fonctionne'));
 
